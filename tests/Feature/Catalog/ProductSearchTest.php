@@ -50,6 +50,22 @@ class ProductSearchTest extends TestCase
             ->assertJsonPath('facets.brands.0.value', 'AEG');
     }
 
+    public function test_search_results_are_paginated(): void
+    {
+        $this->seed();
+
+        $this->getJson('/api/catalog/search?per_page=8&page=1')
+            ->assertOk()
+            ->assertJsonCount(8, 'products')
+            ->assertJsonPath('pagination.current_page', 1)
+            ->assertJsonPath('pagination.has_more', true)
+            ->assertJsonPath('pagination.next_page', 2);
+
+        $this->getJson('/api/catalog/search?per_page=8&page=2')
+            ->assertOk()
+            ->assertJsonPath('pagination.current_page', 2);
+    }
+
     public function test_product_detail_page_and_api_include_reviews(): void
     {
         $this->seed();
@@ -68,6 +84,8 @@ class ProductSearchTest extends TestCase
 
     public function test_external_product_adapter_returns_normalized_products(): void
     {
+        cache()->flush();
+
         Http::fake([
             'dummyjson.com/products/search*' => Http::response([
                 'products' => [[
@@ -80,12 +98,23 @@ class ProductSearchTest extends TestCase
                     'rating' => 4.7,
                     'stock' => 12,
                 ]],
+                'total' => 12,
+                'skip' => 0,
+                'limit' => 4,
             ]),
         ]);
 
-        $this->getJson('/api/catalog/external-search?q=pump')
+        $this->getJson('/api/catalog/external-search?q=phone&per_page=4')
             ->assertOk()
             ->assertJsonPath('products.0.name', 'Test product')
-            ->assertJsonPath('products.0.source', 'dummyjson');
+            ->assertJsonPath('products.0.source', 'dummyjson')
+            ->assertJsonPath('meta.has_more', true)
+            ->assertJsonPath('meta.cache_hit', false);
+
+        $this->getJson('/api/catalog/external-search?q=phone&per_page=4')
+            ->assertOk()
+            ->assertJsonPath('meta.cache_hit', true);
+
+        Http::assertSentCount(1);
     }
 }

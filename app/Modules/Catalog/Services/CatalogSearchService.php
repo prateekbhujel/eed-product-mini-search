@@ -21,14 +21,17 @@ class CatalogSearchService
     public function handle(array $filters): array
     {
         $filters = $this->cleanFilters($filters);
+        $page = (int) ($filters['page'] ?? 1);
+        $perPage = (int) ($filters['per_page'] ?? 12);
         $expandedTerms = $this->expandedTerms($filters['q'] ?? '');
         $cacheKey = $this->cache->key([...$filters, 'expanded' => $expandedTerms]);
         $cacheHit = $this->cache->hit($cacheKey);
 
-        $payload = $this->cache->remember($cacheKey, 600, function () use ($filters, $expandedTerms): array {
+        $payload = $this->cache->remember($cacheKey, 600, function () use ($filters, $expandedTerms, $page, $perPage): array {
             $ranked = $this->products->ranked($filters, $expandedTerms);
+            $total = $ranked->count();
             $items = $ranked
-                ->take(80)
+                ->forPage($page, $perPage)
                 ->map(fn (array $row): array => $this->presentProduct($row['product'], $row['score']))
                 ->values()
                 ->all();
@@ -37,13 +40,20 @@ class CatalogSearchService
                 'products' => $items,
                 'facets' => $this->products->facets(),
                 'suggestions' => $this->suggestions($filters['q'] ?? '', $items),
+                'pagination' => [
+                    'current_page' => $page,
+                    'per_page' => $perPage,
+                    'total' => $total,
+                    'has_more' => $page * $perPage < $total,
+                    'next_page' => $page * $perPage < $total ? $page + 1 : null,
+                ],
             ];
         });
 
         $payload['meta'] = [
             'cache_hit' => $cacheHit,
             'normalized_query' => $this->normalizer->normalize($filters['q'] ?? ''),
-            'result_count' => count($payload['products']),
+            'result_count' => $payload['pagination']['total'] ?? count($payload['products']),
         ];
 
         $this->recordSearch($filters, $payload['meta']);
@@ -115,7 +125,18 @@ class CatalogSearchService
         return collect($filters)
             ->map(fn ($value) => is_string($value) ? trim($value) : $value)
             ->filter(fn ($value): bool => filled($value))
-            ->only(['q', 'family', 'brand', 'availability', 'sort'])
+            ->only(['q', 'family', 'brand', 'availability', 'sort', 'page', 'per_page'])
+            ->map(function ($value, string $key) {
+                if ($key === 'page') {
+                    return max(1, (int) $value);
+                }
+
+                if ($key === 'per_page') {
+                    return min(24, max(8, (int) $value));
+                }
+
+                return $value;
+            })
             ->all();
     }
 

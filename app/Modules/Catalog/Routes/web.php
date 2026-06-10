@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', CatalogPageController::class)->name('catalog.index');
 Route::get('/products/{product:slug}', CatalogPageController::class)->name('catalog.products.page');
 
-Route::prefix('api/catalog')->name('catalog.')->group(function (): void {
+Route::prefix('api/catalog')->name('catalog.')->middleware('throttle:catalog-search')->group(function (): void {
     Route::get('/search', [ProductSearchController::class, 'search'])->name('search');
     Route::get('/products/{slug}', [ProductSearchController::class, 'show'])->name('products.show');
     Route::get('/external-search', ExternalProductSearchController::class)->name('external-search');

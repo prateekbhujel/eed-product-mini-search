@@ -20,6 +20,8 @@ class ProductSearchController extends Controller
             'brand',
             'availability',
             'sort',
+            'page',
+            'per_page',
         ])));
     }
 

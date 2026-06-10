@@ -10,10 +10,11 @@ import {
     SlidersHorizontal,
     X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { searchCatalog } from './api.js';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { searchCatalog, searchExternalProducts } from './api.js';
 import CartDrawer from './components/CartDrawer.jsx';
 import CategoryMenu from './components/CategoryMenu.jsx';
+import ExternalSourceStrip from './components/ExternalSourceStrip.jsx';
 import FilterPanel from './components/FilterPanel.jsx';
 import ProductCard from './components/ProductCard.jsx';
 import ProductDetailPage from './components/ProductDetailPage.jsx';
@@ -45,7 +46,10 @@ export default function CatalogApp() {
         facets: { families: [], brands: [], availability: [], categories: [] },
         suggestions: [],
         meta: { result_count: 0 },
+        pagination: { current_page: 1, per_page: 12, total: 0, has_more: false, next_page: null },
     });
+    const [page, setPage] = useState(1);
+    const [externalData, setExternalData] = useState({ products: [], source: '', meta: {} });
     const [cartItems, setCartItems] = useState(() => {
         try {
             return JSON.parse(window.localStorage.getItem('e24-cart') ?? '[]');
@@ -54,19 +58,35 @@ export default function CatalogApp() {
         }
     });
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [externalLoading, setExternalLoading] = useState(false);
     const [error, setError] = useState('');
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [categoryOpen, setCategoryOpen] = useState(false);
     const [cartOpen, setCartOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
+    const loadMoreRef = useRef(null);
 
     useEffect(() => {
         const controller = new AbortController();
         const timer = window.setTimeout(() => {
-            setLoading(true);
-            searchCatalog(filters, controller.signal)
+            setLoading(page === 1);
+            setLoadingMore(page > 1);
+            searchCatalog({ ...filters, page, per_page: 12 }, controller.signal)
                 .then((payload) => {
-                    setData(payload);
+                    setData((current) => {
+                        if (page === 1) {
+                            return payload;
+                        }
+
+                        const knownIds = new Set(current.products.map((product) => product.id));
+                        const newProducts = payload.products.filter((product) => !knownIds.has(product.id));
+
+                        return {
+                            ...payload,
+                            products: [...current.products, ...newProducts],
+                        };
+                    });
                     setError('');
                 })
                 .catch((searchError) => {
@@ -74,14 +94,56 @@ export default function CatalogApp() {
                         setError('Search is temporarily unavailable. Please try again.');
                     }
                 })
-                .finally(() => setLoading(false));
-        }, 260);
+                .finally(() => {
+                    setLoading(false);
+                    setLoadingMore(false);
+                });
+        }, page === 1 ? 420 : 80);
 
         return () => {
             window.clearTimeout(timer);
             controller.abort();
         };
-    }, [filters]);
+    }, [filters, page]);
+
+    useEffect(() => {
+        if (filters.q.trim().length < 3) {
+            setExternalData({ products: [], source: '', meta: {} });
+            return undefined;
+        }
+
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => {
+            setExternalLoading(true);
+            searchExternalProducts({ q: filters.q, page: 1, per_page: 4 }, controller.signal)
+                .then((payload) => setExternalData(payload))
+                .catch(() => setExternalData({ products: [], source: '', meta: {} }))
+                .finally(() => setExternalLoading(false));
+        }, 520);
+
+        return () => {
+            window.clearTimeout(timer);
+            controller.abort();
+        };
+    }, [filters.q]);
+
+    useEffect(() => {
+        const target = loadMoreRef.current;
+
+        if (!target || !data.pagination?.has_more || loading || loadingMore) {
+            return undefined;
+        }
+
+        const observer = new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) {
+                setPage(data.pagination.next_page);
+            }
+        }, { rootMargin: '420px 0px' });
+
+        observer.observe(target);
+
+        return () => observer.disconnect();
+    }, [data.pagination?.has_more, data.pagination?.next_page, loading, loadingMore]);
 
     useEffect(() => {
         window.localStorage.setItem('e24-cart', JSON.stringify(cartItems));
@@ -114,14 +176,17 @@ export default function CatalogApp() {
     }, [filters.brand, filters.family, filters.q]);
 
     function updateFilter(key, value) {
+        setPage(1);
         setFilters((current) => ({ ...current, [key]: value }));
     }
 
     function resetFilters() {
+        setPage(1);
         setFilters(initialFilters);
     }
 
     function applySuggestion(value) {
+        setPage(1);
         setFilters((current) => ({ ...current, q: value }));
     }
 
@@ -189,6 +254,8 @@ export default function CatalogApp() {
         'Remote control',
         'Door seal',
     ];
+
+    const canLoadMore = Boolean(data.pagination?.has_more && data.pagination?.next_page);
 
     return (
         <div className="market-page">
@@ -346,6 +413,7 @@ export default function CatalogApp() {
                     </div>
 
                     <SuggestionStrip suggestions={data.suggestions} onSelect={applySuggestion} />
+                    <ExternalSourceStrip data={externalData} loading={externalLoading} />
 
                     {error && <div className="alert">{error}</div>}
 
@@ -364,12 +432,23 @@ export default function CatalogApp() {
                                     onAddToCart={addToCart}
                                 />
                             ))}
+                            {loadingMore && Array.from({ length: 4 }).map((_, index) => (
+                                <div className="product-card skeleton-card" key={`page-${page}-${index}`} />
+                            ))}
                         </div>
                     ) : (
                         <div className="empty-state">
                             <BadgeCheck size={28} aria-hidden="true" />
                             <h2>No exact match found</h2>
                             <p>Try the appliance model, OEM reference, or a wider part family like pump, filter, heater, seal, cable or remote.</p>
+                        </div>
+                    )}
+
+                    {canLoadMore && (
+                        <div className="load-more-row" ref={loadMoreRef}>
+                            <button type="button" onClick={() => setPage(data.pagination.next_page)} disabled={loadingMore}>
+                                {loadingMore ? 'Loading...' : 'Load more'}
+                            </button>
                         </div>
                     )}
                 </section>

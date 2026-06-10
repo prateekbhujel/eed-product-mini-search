@@ -36,8 +36,12 @@ export async function getProduct(slug, signal) {
     return response.json();
 }
 
-export async function searchExternalProducts(query, signal) {
-    const params = new URLSearchParams({ q: query });
+export async function searchExternalProducts({ q, page = 1, per_page = 4 }, signal) {
+    const params = new URLSearchParams({
+        q,
+        page: String(page),
+        per_page: String(per_page),
+    });
     const response = await fetch(`/api/catalog/external-search?${params.toString()}`, {
         headers: {
             Accept: 'application/json',

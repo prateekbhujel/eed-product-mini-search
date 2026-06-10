@@ -8,12 +8,14 @@ use Illuminate\Support\Facades\Http;
 
 class DummyJsonProductGateway
 {
-    public function search(string $query, int $limit = 8): array
+    public function search(string $query, int $page = 1, int $perPage = 8): array
     {
         $query = trim($query);
+        $page = max(1, $page);
+        $perPage = min(20, max(4, $perPage));
 
         if ($query === '') {
-            return [];
+            return $this->emptyPayload($page, $perPage);
         }
 
         try {
@@ -22,20 +24,50 @@ class DummyJsonProductGateway
                 ->retry(1, 150)
                 ->get('https://dummyjson.com/products/search', [
                     'q' => $query,
-                    'limit' => min(max($limit, 1), 20),
+                    'limit' => $perPage,
+                    'skip' => ($page - 1) * $perPage,
                     'select' => 'id,title,brand,category,price,thumbnail,rating,stock',
                 ]);
         } catch (ConnectionException) {
-            return [];
+            return $this->emptyPayload($page, $perPage);
         }
 
         if (! $response->ok()) {
-            return [];
+            return $this->emptyPayload($page, $perPage);
         }
 
-        return collect($response->json('products', []))
+        $products = collect($response->json('products', []))
             ->map(fn (array $row): array => ExternalProductData::fromDummyJson($row)->toArray())
             ->values()
             ->all();
+
+        $total = (int) $response->json('total', count($products));
+
+        return [
+            'products' => $products,
+            'source' => 'dummyjson',
+            'meta' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'has_more' => $page * $perPage < $total,
+                'next_page' => $page * $perPage < $total ? $page + 1 : null,
+            ],
+        ];
+    }
+
+    private function emptyPayload(int $page, int $perPage): array
+    {
+        return [
+            'products' => [],
+            'source' => 'dummyjson',
+            'meta' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => 0,
+                'has_more' => false,
+                'next_page' => null,
+            ],
+        ];
     }
 }
