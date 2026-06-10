@@ -5,8 +5,8 @@ export default function FilterPanel({ facets, filters, onChange, onReset }) {
         <div className="filter-panel">
             <div className="filter-panel-head">
                 <div>
-                    <p>Filter catalog</p>
-                    <h2>Narrow by part family, brand and stock</h2>
+                    <p>Refine results</p>
+                    <h2>Shop by family, brand and availability</h2>
                 </div>
                 <button type="button" className="icon-button" onClick={onReset} aria-label="Reset filters">
                     <RotateCcw size={16} aria-hidden="true" />
@@ -38,8 +38,8 @@ export default function FilterPanel({ facets, filters, onChange, onReset }) {
             />
 
             <div className="filter-note">
-                <strong>Search priority</strong>
-                <span>Exact SKU, OEM and model hits are ranked above wording matches.</span>
+                <strong>Fitment first</strong>
+                <span>Exact article, OEM and appliance model matches are ranked above broad text matches.</span>
             </div>
         </div>
     );

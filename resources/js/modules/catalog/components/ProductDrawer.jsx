@@ -1,4 +1,4 @@
-import { BadgeCheck, PackageCheck, ShoppingCart, Truck } from 'lucide-react';
+import { PackageCheck, ShieldCheck, ShoppingCart, Truck } from 'lucide-react';
 
 export default function ProductDrawer({ product, onClose }) {
     if (!product) {
@@ -15,7 +15,7 @@ export default function ProductDrawer({ product, onClose }) {
     const specs = Object.entries(product.specs ?? {}).filter(([, value]) => Boolean(value));
 
     return (
-        <aside className="detail-panel">
+        <aside className="detail-panel buy-box-panel">
             <div className="detail-head">
                 <div>
                     <p>{product.brand}</p>
@@ -36,6 +36,24 @@ export default function ProductDrawer({ product, onClose }) {
                 <span>{product.availability.delivery}</span>
                 <small>{product.availability.stock} units in catalog stock</small>
             </div>
+
+            <label className="quantity-row">
+                <span>Qty</span>
+                <select defaultValue="1">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                </select>
+            </label>
+
+            <button type="button" className="wide-buy-button">
+                <ShoppingCart size={16} aria-hidden="true" />
+                Add to basket
+            </button>
+
+            <button type="button" className="wide-secondary-button">
+                Check compatibility
+            </button>
 
             <section className="detail-section">
                 <h3>Part references</h3>
@@ -63,14 +81,9 @@ export default function ProductDrawer({ product, onClose }) {
             </section>
 
             <div className="trust-row">
-                <BadgeCheck size={17} aria-hidden="true" />
-                <span>Check model plate before ordering. Exact OEM/model match wins search ranking.</span>
+                <ShieldCheck size={17} aria-hidden="true" />
+                <span>Catalog result is ranked by exact SKU, OEM and appliance model signals.</span>
             </div>
-
-            <button type="button" className="wide-buy-button">
-                <ShoppingCart size={16} aria-hidden="true" />
-                Add to basket
-            </button>
         </aside>
     );
 }
