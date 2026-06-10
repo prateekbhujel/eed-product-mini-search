@@ -1,17 +1,18 @@
 # E24 Product Mini Search
 
-Laravel + React spare-parts search slice for a supplier-backed appliance parts shop.
+Laravel + React spare-parts catalog slice for a supplier-backed appliance parts shop.
 
-This is a small production-style slice, not a homepage mockup. The goal is to show how the catalog layer can work: products live in the database, users can search by brand, model number, OEM reference, part family, and common wording, and repeat searches are cached without requiring Redis.
+The app focuses on the parts of the platform that matter early: catalog modeling, searchable references, category filters, product detail pages, basket flow, reviews, seeded demo data, and a replaceable external supplier/API adapter.
 
-## What This Shows
+## Current Scope
 
-- Laravel 12 modular monolith structure inspired by ERP-style app organization.
-- React storefront search screen with filters, suggestions, product cards, and detail panel.
-- DB-backed product catalog with categories, brands, OEM numbers, EAN/article numbers, compatible models, specs, stock state, and local images.
-- Search ranking that prioritizes exact SKU, OEM, and model matches before loose wording matches.
-- Synonym handling for natural wording like `washer`, `fridge`, `shelf`, `hoover`, `door rubber`, and `coffee pump`.
-- Database cache store using a separate SQLite connection, useful when Redis is not available on shared hosting.
+- Laravel 12 modular monolith structure with Catalog and Search modules.
+- React storefront with Amazon-style search header, category drawer, filters, compact product cards, basket drawer, product detail pages, related products, and reviews.
+- DB-backed product catalog with categories, brands, OEM numbers, EAN/article numbers, compatible appliance models, specs, prices, stock state, ratings, reviews, and local product images.
+- Search ranking for SKU, OEM/reference numbers, model numbers, brand, family, category, specs, and common wording.
+- Synonyms for searches such as `washer`, `fridge`, `hoover`, `door rubber`, `coffee pump`, and `shelf`.
+- Database cache store using a separate SQLite connection when Redis is not available on shared hosting.
+- External product gateway example using a DTO boundary, so supplier responses can be normalized before entering the catalog layer.
 
 ## Architecture
 
@@ -19,15 +20,16 @@ This is a small production-style slice, not a homepage mockup. The goal is to sh
 app/
   Modules/
     Catalog/
-      Http/Controllers
-      Models
-      Providers
-      Repositories
-      Routes
-      Services
+      Data/
+      Http/Controllers/
+      Models/
+      Providers/
+      Repositories/
+      Routes/
+      Services/
     Search/
-      Models
-      Services
+      Models/
+      Services/
 
 resources/js/modules/catalog/
   CatalogApp.jsx
@@ -38,7 +40,7 @@ database/seeders/Catalog/
   CatalogDemoSeeder.php
 ```
 
-The current demo uses seeded catalog data so the app can be reviewed immediately. In a real supplier integration, the same module boundary would accept supplier feeds/API responses, normalize them into the catalog tables, then later push search documents into Elasticsearch/OpenSearch for the 20M-product scale.
+The demo data is seeded so the app can be reviewed immediately. With real ASWO/EED access, supplier API responses would be handled by a gateway, mapped through DTOs, normalized into catalog tables, then pushed into Elasticsearch/OpenSearch when the catalog grows beyond what the database search layer should handle.
 
 ## Local Setup
 
@@ -68,26 +70,14 @@ GET /api/catalog/search?q=DC31-00054A
 GET /api/catalog/search?q=fridge%20shelf
 GET /api/catalog/search?q=pump&brand=Bosch
 GET /api/catalog/products/{slug}
+GET /api/catalog/external-search?q=pump
 ```
 
-## Database Notes
+## Notes
 
-For the demo, SQLite keeps setup fast. For production, switch the main catalog connection to MySQL/MariaDB or PostgreSQL:
+SQLite is used for fast review and shared-hosting compatibility. Production catalog storage should be MySQL/MariaDB or PostgreSQL, with Redis or a managed cache when available.
 
-```env
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=e24_catalog
-DB_USERNAME=...
-DB_PASSWORD=...
-
-CACHE_STORE=database
-DB_CACHE_CONNECTION=cache_sqlite
-DB_CACHE_DATABASE=/absolute/path/to/database/cache.sqlite
-```
-
-This keeps the main catalog on MySQL while cache remains lightweight on SQLite when Redis is unavailable.
+Elasticsearch/OpenSearch is intentionally not required for this mini demo because shared hosting usually cannot run it. The current search service and repository give one replaceable boundary for moving indexing/search into a dedicated engine later.
 
 ## Verification
 
@@ -96,4 +86,4 @@ php artisan test
 npm run build
 ```
 
-Current coverage checks homepage rendering, exact OEM search, common wording search, and filtered ranked results.
+Coverage checks homepage rendering, exact OEM search, common wording search, filtered results, product detail/reviews, and the external adapter normalization.
