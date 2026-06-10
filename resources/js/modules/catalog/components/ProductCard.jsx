@@ -1,12 +1,11 @@
 import { CheckCircle2, ShoppingCart, Star } from 'lucide-react';
 
-export default function ProductCard({ product, selected, onSelect }) {
+export default function ProductCard({ product, onAddToCart }) {
     const oem = product.identifiers?.oem?.slice(0, 2) ?? [];
-    const models = product.compatible_models?.slice(0, 3) ?? [];
 
     return (
-        <article className={`product-card ${selected ? 'is-selected' : ''}`}>
-            <button className="product-main" type="button" onClick={onSelect}>
+        <article className="product-card">
+            <a className="product-main" href={`/products/${product.slug}`}>
                 <span className="image-box">
                     <img src={product.image_url} alt="" loading="lazy" />
                 </span>
@@ -14,7 +13,7 @@ export default function ProductCard({ product, selected, onSelect }) {
                     <p className="card-kicker">{product.brand} | {product.category.short_name}</p>
                     <h2>{product.name}</h2>
                 </div>
-            </button>
+            </a>
 
             <div className="rating-row">
                 <span className="stars" aria-label={`${product.rating.toFixed(1)} stars`}>
@@ -39,18 +38,15 @@ export default function ProductCard({ product, selected, onSelect }) {
                 </span>
             </div>
 
-            <p className="delivery-line">{product.availability.delivery}. Match by OEM or model before ordering.</p>
-
             <div className="chip-row">
                 {oem.map((value) => <span key={value}>OEM {value}</span>)}
-                {models.map((value) => <span key={value}>{value}</span>)}
             </div>
 
             <div className="card-actions">
-                <button type="button" className="text-link" onClick={onSelect}>View fitment</button>
-                <button type="button" className="buy-button">
+                <a className="text-link" href={`/products/${product.slug}`}>View details</a>
+                <button type="button" className="buy-button" onClick={() => onAddToCart(product)}>
                     <ShoppingCart size={15} aria-hidden="true" />
-                    Add to basket
+                    Add
                 </button>
             </div>
         </article>

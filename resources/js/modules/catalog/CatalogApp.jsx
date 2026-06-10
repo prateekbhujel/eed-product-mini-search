@@ -12,9 +12,11 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { searchCatalog } from './api.js';
+import CartDrawer from './components/CartDrawer.jsx';
+import CategoryMenu from './components/CategoryMenu.jsx';
 import FilterPanel from './components/FilterPanel.jsx';
 import ProductCard from './components/ProductCard.jsx';
-import ProductDrawer from './components/ProductDrawer.jsx';
+import ProductDetailPage from './components/ProductDetailPage.jsx';
 import SuggestionStrip from './components/SuggestionStrip.jsx';
 
 const initialFilters = {
@@ -24,18 +26,39 @@ const initialFilters = {
     availability: '',
 };
 
+function filtersFromLocation() {
+    const params = new URLSearchParams(window.location.search);
+
+    return {
+        q: params.get('q') ?? '',
+        family: params.get('family') ?? '',
+        brand: params.get('brand') ?? '',
+        availability: params.get('availability') ?? '',
+    };
+}
+
 export default function CatalogApp() {
-    const [filters, setFilters] = useState(initialFilters);
+    const detailSlug = window.location.pathname.match(/^\/products\/([^/]+)/)?.[1] ?? null;
+    const [filters, setFilters] = useState(filtersFromLocation);
     const [data, setData] = useState({
         products: [],
         facets: { families: [], brands: [], availability: [], categories: [] },
         suggestions: [],
         meta: { result_count: 0 },
     });
-    const [selectedProduct, setSelectedProduct] = useState(null);
+    const [cartItems, setCartItems] = useState(() => {
+        try {
+            return JSON.parse(window.localStorage.getItem('e24-cart') ?? '[]');
+        } catch {
+            return [];
+        }
+    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [filtersOpen, setFiltersOpen] = useState(false);
+    const [categoryOpen, setCategoryOpen] = useState(false);
+    const [cartOpen, setCartOpen] = useState(false);
+    const [accountOpen, setAccountOpen] = useState(false);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -45,10 +68,6 @@ export default function CatalogApp() {
                 .then((payload) => {
                     setData(payload);
                     setError('');
-                    if (selectedProduct) {
-                        const stillVisible = payload.products.find((product) => product.id === selectedProduct.id);
-                        setSelectedProduct(stillVisible ?? payload.products[0] ?? null);
-                    }
                 })
                 .catch((searchError) => {
                     if (searchError.name !== 'AbortError') {
@@ -64,10 +83,35 @@ export default function CatalogApp() {
         };
     }, [filters]);
 
+    useEffect(() => {
+        window.localStorage.setItem('e24-cart', JSON.stringify(cartItems));
+    }, [cartItems]);
+
     const activeFilterCount = useMemo(
         () => Object.values(filters).filter(Boolean).length,
         [filters],
     );
+
+    const cartCount = useMemo(
+        () => cartItems.reduce((total, item) => total + item.qty, 0),
+        [cartItems],
+    );
+
+    const resultTitle = useMemo(() => {
+        if (filters.q) {
+            return `Spare parts matching "${filters.q}"`;
+        }
+
+        if (filters.family) {
+            return filters.family;
+        }
+
+        if (filters.brand) {
+            return `${filters.brand} spare parts`;
+        }
+
+        return 'Recommended appliance parts';
+    }, [filters.brand, filters.family, filters.q]);
 
     function updateFilter(key, value) {
         setFilters((current) => ({ ...current, [key]: value }));
@@ -79,6 +123,63 @@ export default function CatalogApp() {
 
     function applySuggestion(value) {
         setFilters((current) => ({ ...current, q: value }));
+    }
+
+    function submitSearch() {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+            if (value) {
+                params.set(key, value);
+            }
+        });
+
+        window.location.href = `/${params.toString() ? `?${params.toString()}` : ''}`;
+    }
+
+    function selectFamily(value) {
+        updateFilter('family', value);
+        setCategoryOpen(false);
+        if (detailSlug) {
+            window.location.href = `/?family=${encodeURIComponent(value)}`;
+        }
+    }
+
+    function selectBrand(value) {
+        updateFilter('brand', value);
+        setCategoryOpen(false);
+        if (detailSlug) {
+            window.location.href = `/?brand=${encodeURIComponent(value)}`;
+        }
+    }
+
+    function addToCart(product) {
+        setCartItems((items) => {
+            const existing = items.find((item) => item.product.id === product.id);
+
+            if (existing) {
+                return items.map((item) => (
+                    item.product.id === product.id ? { ...item, qty: item.qty + 1 } : item
+                ));
+            }
+
+            return [...items, { product, qty: 1 }];
+        });
+        setCartOpen(true);
+    }
+
+    function updateCartQty(productId, qty) {
+        if (qty <= 0) {
+            removeFromCart(productId);
+            return;
+        }
+
+        setCartItems((items) => items.map((item) => (
+            item.product.id === productId ? { ...item, qty } : item
+        )));
+    }
+
+    function removeFromCart(productId) {
+        setCartItems((items) => items.filter((item) => item.product.id !== productId));
     }
 
     const quickFamilies = [
@@ -93,17 +194,17 @@ export default function CatalogApp() {
         <div className="market-page">
             <header className="market-header">
                 <div className="market-header-main">
-                    <button className="menu-button" type="button" aria-label="Open categories">
+                    <button className="menu-button" type="button" aria-label="Open categories" onClick={() => setCategoryOpen(true)}>
                         <Menu size={22} aria-hidden="true" />
                     </button>
 
-                    <div className="brand-lockup" aria-label="E24 spare parts search">
+                    <a className="brand-lockup" href="/" aria-label="E24 spare parts search">
                         <span className="brand-mark">E24</span>
                         <span>
                             <strong>Parts</strong>
                             <small>appliance spares</small>
                         </span>
-                    </div>
+                    </a>
 
                     <div className="ship-line">
                         <MapPin size={17} aria-hidden="true" />
@@ -131,24 +232,40 @@ export default function CatalogApp() {
                             type="search"
                             placeholder="Model, OEM, brand or part name"
                             onChange={(event) => updateFilter('q', event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                    submitSearch();
+                                }
+                            }}
                             autoComplete="off"
                         />
-                        <button type="button" aria-label="Search catalog">
+                        <button type="button" aria-label="Search catalog" onClick={submitSearch}>
                             <Search size={22} aria-hidden="true" />
                         </button>
                     </div>
 
-                    <button className="account-button" type="button">
-                        <CircleUserRound size={18} aria-hidden="true" />
-                        <span>
-                            <small>Hello, sign in</small>
-                            <strong>Account</strong>
-                        </span>
-                    </button>
+                    <div className="account-wrap">
+                        <button className="account-button" type="button" onClick={() => setAccountOpen((open) => !open)}>
+                            <CircleUserRound size={18} aria-hidden="true" />
+                            <span>
+                                <small>Hello, sign in</small>
+                                <strong>Account</strong>
+                            </span>
+                        </button>
+                        {accountOpen && (
+                            <div className="account-menu">
+                                <strong>Demo account</strong>
+                                <a href="/">Orders</a>
+                                <a href="/">Saved models</a>
+                                <button type="button" onClick={() => setAccountOpen(false)}>Close</button>
+                            </div>
+                        )}
+                    </div>
 
-                    <button className="cart-button" type="button">
+                    <button className="cart-button" type="button" onClick={() => setCartOpen(true)}>
                         <ShoppingCart size={22} aria-hidden="true" />
                         <strong>Basket</strong>
+                        {cartCount > 0 && <span>{cartCount}</span>}
                     </button>
 
                     <button className="icon-button mobile-filter-button" type="button" onClick={() => setFiltersOpen(true)} aria-label="Open filters">
@@ -169,10 +286,28 @@ export default function CatalogApp() {
                             {family}
                         </button>
                     ))}
-                    <span>OEM and model lookup ready</span>
                 </nav>
             </header>
 
+            <CategoryMenu
+                open={categoryOpen}
+                facets={data.facets}
+                onClose={() => setCategoryOpen(false)}
+                onSelectFamily={selectFamily}
+                onSelectBrand={selectBrand}
+            />
+
+            <CartDrawer
+                open={cartOpen}
+                items={cartItems}
+                onClose={() => setCartOpen(false)}
+                onQtyChange={updateCartQty}
+                onRemove={removeFromCart}
+            />
+
+            {detailSlug ? (
+                <ProductDetailPage slug={decodeURIComponent(detailSlug)} onAddToCart={addToCart} />
+            ) : (
             <main className="catalog-shell market-layout">
                 <aside className={`filter-sheet ${filtersOpen ? 'is-open' : ''}`}>
                     <div className="mobile-sheet-head">
@@ -195,8 +330,7 @@ export default function CatalogApp() {
                     <div className="result-head">
                         <div>
                             <p>{loading ? 'Searching catalog...' : `${data.meta?.result_count ?? 0} results`}</p>
-                            <h1>{filters.q ? `Spare parts matching "${filters.q}"` : 'Recommended appliance parts'}</h1>
-                            <span>Fast matches across SKU, OEM references, model numbers and common wording.</span>
+                            <h1>{resultTitle}</h1>
                         </div>
                         <div className="result-actions">
                             <button className="reset-button" type="button" onClick={resetFilters} disabled={activeFilterCount === 0}>
@@ -227,8 +361,7 @@ export default function CatalogApp() {
                                 <ProductCard
                                     key={product.id}
                                     product={product}
-                                    selected={selectedProduct?.id === product.id}
-                                    onSelect={() => setSelectedProduct(product)}
+                                    onAddToCart={addToCart}
                                 />
                             ))}
                         </div>
@@ -240,14 +373,13 @@ export default function CatalogApp() {
                         </div>
                     )}
                 </section>
-
-                <ProductDrawer product={selectedProduct ?? data.products[0] ?? null} onClose={() => setSelectedProduct(null)} />
             </main>
+            )}
 
             <footer className="catalog-shell footer-bar">
-                <span>Secure catalog search</span>
+                <span>Catalog search</span>
                 <span>Model and OEM matching</span>
-                <span>Supplier-ready Laravel backend</span>
+                <span>Laravel backend</span>
             </footer>
         </div>
     );

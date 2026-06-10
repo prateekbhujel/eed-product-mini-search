@@ -20,3 +20,34 @@ export async function searchCatalog(filters, signal) {
 
     return response.json();
 }
+
+export async function getProduct(slug, signal) {
+    const response = await fetch(`/api/catalog/products/${slug}`, {
+        headers: {
+            Accept: 'application/json',
+        },
+        signal,
+    });
+
+    if (!response.ok) {
+        throw new Error('Product request failed');
+    }
+
+    return response.json();
+}
+
+export async function searchExternalProducts(query, signal) {
+    const params = new URLSearchParams({ q: query });
+    const response = await fetch(`/api/catalog/external-search?${params.toString()}`, {
+        headers: {
+            Accept: 'application/json',
+        },
+        signal,
+    });
+
+    if (!response.ok) {
+        throw new Error('External product request failed');
+    }
+
+    return response.json();
+}
