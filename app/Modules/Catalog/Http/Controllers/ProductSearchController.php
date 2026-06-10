@@ -10,9 +10,7 @@ use Illuminate\Http\Request;
 
 class ProductSearchController extends Controller
 {
-    public function __construct(private readonly CatalogSearchService $search)
-    {
-    }
+    public function __construct(private readonly CatalogSearchService $search) {}
 
     public function search(Request $request): JsonResponse
     {
@@ -25,14 +23,20 @@ class ProductSearchController extends Controller
         ])));
     }
 
-    public function show(Product $product): JsonResponse
+    public function show(string $slug): JsonResponse
     {
-        return response()->json([
-            'product' => $this->search->presentProduct($product->loadMissing([
+        $product = Product::query()
+            ->where('slug', $slug)
+            ->with([
                 'category',
                 'identifiers',
                 'compatibleModels',
-            ])),
+                'reviews',
+            ])
+            ->firstOrFail();
+
+        return response()->json([
+            'product' => $this->search->presentProduct($product),
         ]);
     }
 }

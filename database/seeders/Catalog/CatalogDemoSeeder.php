@@ -6,6 +6,7 @@ use App\Modules\Catalog\Models\Category;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductCompatibleModel;
 use App\Modules\Catalog\Models\ProductIdentifier;
+use App\Modules\Catalog\Models\ProductReview;
 use App\Modules\Search\Models\SearchSynonym;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -62,6 +63,7 @@ class CatalogDemoSeeder extends Seeder
 
                 $this->replaceIdentifiers($product, $row['identifiers']);
                 $this->replaceModels($product, $row['models']);
+                $this->replaceReviews($product);
             }
         });
     }
@@ -179,6 +181,43 @@ class CatalogDemoSeeder extends Seeder
                 'model_number' => $model,
                 'model_family' => Str::before($model, '-'),
                 'normalized_model_number' => $this->compact($model),
+            ]);
+        }
+    }
+
+    private function replaceReviews(Product $product): void
+    {
+        $product->reviews()->delete();
+
+        $rows = [
+            [
+                'author_name' => 'Daniel K.',
+                'rating' => 5,
+                'title' => 'Matched the model number',
+                'body' => 'Found it by the OEM number, checked the model plate, and the part fitted without extra work.',
+                'reviewed_on' => now()->subDays(11)->toDateString(),
+            ],
+            [
+                'author_name' => 'M. Schneider',
+                'rating' => $product->availability === 'in_stock' ? 5 : 4,
+                'title' => 'Clear enough to order',
+                'body' => 'The image and reference numbers were enough to compare with the old part before ordering.',
+                'reviewed_on' => now()->subDays(29)->toDateString(),
+            ],
+            [
+                'author_name' => 'Lukas M.',
+                'rating' => 4,
+                'title' => 'Worked as expected',
+                'body' => 'Delivery note was accurate. I still recommend checking both the appliance model and spare-part number.',
+                'reviewed_on' => now()->subDays(47)->toDateString(),
+            ],
+        ];
+
+        foreach ($rows as $row) {
+            ProductReview::query()->create([
+                'product_id' => $product->id,
+                ...$row,
+                'verified' => true,
             ]);
         }
     }

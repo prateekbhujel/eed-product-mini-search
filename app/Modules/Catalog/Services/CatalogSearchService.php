@@ -16,8 +16,7 @@ class CatalogSearchService
         private readonly ProductSearchRepository $products,
         private readonly SearchQueryNormalizer $normalizer,
         private readonly SearchCacheService $cache,
-    ) {
-    }
+    ) {}
 
     public function handle(array $filters): array
     {
@@ -92,6 +91,21 @@ class CatalogSearchService
                 ->values()
                 ->all(),
             'specs' => $product->specs ?? [],
+            'reviews' => $product->relationLoaded('reviews')
+                ? $product->reviews
+                    ->sortByDesc('reviewed_on')
+                    ->take(6)
+                    ->map(fn ($review): array => [
+                        'author_name' => $review->author_name,
+                        'rating' => $review->rating,
+                        'title' => $review->title,
+                        'body' => $review->body,
+                        'verified' => $review->verified,
+                        'reviewed_on' => $review->reviewed_on?->format('M j, Y'),
+                    ])
+                    ->values()
+                    ->all()
+                : [],
             'score' => $score,
         ];
     }
