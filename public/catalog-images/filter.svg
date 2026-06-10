@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Vacuum filter spare part">
+  <rect width="640" height="480" fill="#f7f6f1"/>
+  <circle cx="320" cy="240" r="150" fill="#2e3a42"/>
+  <circle cx="320" cy="240" r="112" fill="#f4efe4"/>
+  <circle cx="320" cy="240" r="58" fill="#9d6248"/>
+  <g stroke="#d6c9b7" stroke-width="12"><path d="M214 196h212"/><path d="M202 240h236"/><path d="M214 284h212"/></g>
+  <path d="M242 108l156 264" stroke="#2e3a42" stroke-width="10" opacity=".25"/>
+</svg>

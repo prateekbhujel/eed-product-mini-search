@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Sensor spare part">
+  <rect width="640" height="480" fill="#f6f7f2"/>
+  <path d="M140 242h170" stroke="#26313a" stroke-width="22" stroke-linecap="round"/>
+  <path d="M330 242c0-54 42-98 94-98s94 44 94 98-42 98-94 98-94-44-94-98z" fill="#eef1f2" stroke="#26313a" stroke-width="22"/>
+  <path d="M404 186v112m40-92v72" stroke="#c45431" stroke-width="14" stroke-linecap="round"/>
+  <rect x="96" y="208" width="78" height="68" rx="18" fill="#6c7b84"/>
+</svg>

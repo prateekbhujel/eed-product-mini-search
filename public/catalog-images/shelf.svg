@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Glass shelf spare part">
+  <rect width="640" height="480" fill="#f6f8f4"/>
+  <path d="M100 158h440l-58 164H158z" fill="#e6eff2" stroke="#6c858f" stroke-width="16" stroke-linejoin="round"/>
+  <path d="M152 188h336" stroke="#ffffff" stroke-width="18" stroke-linecap="round" opacity=".8"/>
+  <rect x="126" y="326" width="388" height="34" rx="17" fill="#738890"/>
+</svg>

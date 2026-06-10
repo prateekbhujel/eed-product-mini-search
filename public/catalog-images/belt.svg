@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Dryer belt spare part">
+  <rect width="640" height="480" fill="#f4f5f2"/>
+  <ellipse cx="320" cy="240" rx="208" ry="126" fill="none" stroke="#20272d" stroke-width="48"/>
+  <ellipse cx="320" cy="240" rx="156" ry="78" fill="none" stroke="#55626b" stroke-width="14"/>
+  <path d="M166 156l306 204" stroke="#f4f5f2" stroke-width="22" opacity=".35"/>
+  <path d="M444 142l58 38-32 48" fill="none" stroke="#c45431" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

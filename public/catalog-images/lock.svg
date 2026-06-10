@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Door lock spare part">
+  <rect width="640" height="480" fill="#f5f6f4"/>
+  <rect x="176" y="148" width="288" height="188" rx="28" fill="#28333b"/>
+  <rect x="230" y="104" width="180" height="84" rx="42" fill="none" stroke="#6f7d86" stroke-width="28"/>
+  <rect x="232" y="216" width="176" height="46" rx="16" fill="#e8ebe9"/>
+  <circle cx="320" cy="238" r="12" fill="#c45431"/>
+  <path d="M192 374h256" stroke="#28333b" stroke-width="28" stroke-linecap="round"/>
+</svg>

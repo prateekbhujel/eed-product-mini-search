@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Refrigerator drawer spare part">
+  <rect width="640" height="480" fill="#f3f8fa"/>
+  <path d="M126 126h388l-32 248H158z" fill="#dbe9ee" stroke="#6f8793" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M166 170h308l-16 154H182z" fill="#f8fbfc" opacity=".78"/>
+  <path d="M210 354h220" stroke="#6f8793" stroke-width="24" stroke-linecap="round"/>
+  <path d="M150 126l34-54h272l34 54z" fill="#9fb5bf"/>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Cable spare part">
+  <rect width="640" height="480" fill="#f6f7f4"/>
+  <path d="M140 296c58-118 184-118 234-20 34 66 120 62 154-10" fill="none" stroke="#26313a" stroke-width="34" stroke-linecap="round"/>
+  <rect x="82" y="270" width="94" height="70" rx="16" fill="#52616b"/>
+  <rect x="474" y="218" width="94" height="70" rx="16" fill="#52616b"/>
+  <g fill="#d6a241"><rect x="66" y="292" width="24" height="14" rx="4"/><rect x="66" y="316" width="24" height="14" rx="4"/><rect x="552" y="236" width="24" height="14" rx="4"/><rect x="552" y="260" width="24" height="14" rx="4"/></g>
+</svg>

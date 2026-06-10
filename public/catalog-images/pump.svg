@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Drain pump spare part">
+  <rect width="640" height="480" fill="#f5f7f6"/>
+  <circle cx="305" cy="245" r="118" fill="#2f3d4a"/>
+  <circle cx="305" cy="245" r="72" fill="#e9eef0"/>
+  <circle cx="305" cy="245" r="28" fill="#71808c"/>
+  <path d="M418 218h104c26 0 48 22 48 48v39h-84v-23c0-9-7-16-16-16h-52z" fill="#1f2b34"/>
+  <path d="M190 170h-64c-18 0-32 14-32 32v42h96z" fill="#52616d"/>
+  <path d="M204 336h205l30 54H174z" fill="#1f2b34"/>
+  <path d="M262 154h86l16 42H246z" fill="#7f8c96"/>
+  <g fill="#c45431"><circle cx="198" cy="363" r="12"/><circle cx="414" cy="363" r="12"/><circle cx="526" cy="265" r="10"/></g>
+</svg>

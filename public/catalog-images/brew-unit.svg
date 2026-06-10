@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Coffee brew unit spare part">
+  <rect width="640" height="480" fill="#f7f4ec"/>
+  <rect x="172" y="102" width="268" height="276" rx="34" fill="#303a42"/>
+  <rect x="214" y="142" width="184" height="70" rx="16" fill="#e4e0d7"/>
+  <circle cx="306" cy="276" r="64" fill="#8b5b45"/>
+  <circle cx="306" cy="276" r="34" fill="#f3eee6"/>
+  <rect x="430" y="190" width="64" height="112" rx="20" fill="#687680"/>
+  <path d="M222 398h168" stroke="#303a42" stroke-width="28" stroke-linecap="round"/>
+</svg>
