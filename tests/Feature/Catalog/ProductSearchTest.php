@@ -147,26 +147,34 @@ class ProductSearchTest extends TestCase
 
         Http::fake([
             'shop.euras.com/eed.php*' => Http::response([
+                'fehlernummer' => '0',
                 'gesamtanzahltreffer' => 12,
-                'artikel' => [[
-                    'artikelnummer' => 'Q509827',
-                    'artikelbezeichnung' => 'HDMI cable high speed 2m',
-                    'artikelhersteller' => 'Generic',
-                    'vgruppenname' => 'CABLES',
-                    'ekpreis' => '5,60',
-                    'bildurl' => 'https://example.test/q509827.jpg',
-                    'bestellbar' => 'J',
-                ]],
+                'neuesessionid' => 'generated-session',
+                'treffer' => [
+                    '1' => [
+                        'artikelnummer' => 'R423020',
+                        'artikelbezeichnung' => '149335115 SONY AC-ADAPTER (AC-M1215WW',
+                        'originalnummer' => '149335115',
+                        'artikelhersteller' => 'SONY',
+                        'vgruppenname' => 'AC-Adapter',
+                        'ekpreis' => '28,05',
+                        'thumbnailurl' => 'https://example.test/r423020.jpg',
+                        'bestellbar' => 'J',
+                    ],
+                ],
             ]),
         ]);
 
-        $this->getJson('/api/catalog/external-search?q=HDMI%20cable&per_page=4')
+        $this->getJson('/api/catalog/external-search?q=SONY%20adapter&per_page=4')
             ->assertOk()
-            ->assertJsonPath('products.0.external_id', 'Q509827')
-            ->assertJsonPath('products.0.name', 'HDMI cable high speed 2m')
+            ->assertJsonPath('products.0.external_id', 'R423020')
+            ->assertJsonPath('products.0.name', '149335115 SONY AC-ADAPTER (AC-M1215WW')
             ->assertJsonPath('products.0.source', 'eed')
-            ->assertJsonPath('products.0.price', 5.6)
-            ->assertJsonPath('meta.gateway', 'eed')
+            ->assertJsonPath('products.0.category', 'AC-Adapter')
+            ->assertJsonPath('products.0.price', 28.05)
+            ->assertJsonPath('products.0.image_url', 'https://example.test/r423020.jpg')
+            ->assertJsonPath('meta.gateway', 'eed-live')
+            ->assertJsonPath('meta.session_id', 'generated-session')
             ->assertJsonPath('meta.has_more', true);
 
         Http::assertSent(function ($request): bool {
@@ -177,12 +185,13 @@ class ProductSearchTest extends TestCase
                 && ($query['id'] ?? null) === 'demo-id'
                 && ($query['sessionid'] ?? null) === 'demo-session'
                 && ($query['art'] ?? null) === 'artikelsuche'
-                && ($query['suchbg'] ?? null) === 'HDMIcable'
+                && ($query['suchbg'] ?? null) === 'SONYadapter'
+                && ($query['shopurl'] ?? null) === 'https://eed.pratikbhujel.com.np'
                 && ($query['customerip'] ?? null) === md5('127.0.0.1');
         });
     }
 
-    public function test_external_product_adapter_falls_back_without_eed_credentials(): void
+    public function test_external_product_adapter_uses_captured_eed_test_response_without_credentials(): void
     {
         cache()->flush();
         config([
@@ -190,36 +199,82 @@ class ProductSearchTest extends TestCase
             'services.eed.session_id' => null,
         ]);
 
-        Http::fake([
-            'dummyjson.com/products/search*' => Http::response([
-                'products' => [[
-                    'id' => 10,
-                    'title' => 'Test product',
-                    'brand' => 'Demo',
-                    'category' => 'tools',
-                    'price' => 19.99,
-                    'thumbnail' => 'https://example.test/image.jpg',
-                    'rating' => 4.7,
-                    'stock' => 12,
-                ]],
-                'total' => 12,
-                'skip' => 0,
-                'limit' => 4,
-            ]),
-        ]);
+        Http::fake();
 
-        $this->getJson('/api/catalog/external-search?q=phone&per_page=4')
+        $this->getJson('/api/catalog/external-search?q=SONY&per_page=4')
             ->assertOk()
-            ->assertJsonPath('products.0.name', 'Test product')
-            ->assertJsonPath('products.0.source', 'dummyjson')
-            ->assertJsonPath('meta.gateway', 'eed-fallback')
+            ->assertJsonPath('products.0.external_id', 'R423020')
+            ->assertJsonPath('products.0.name', '149335115 SONY AC-ADAPTER (AC-M1215WW')
+            ->assertJsonPath('products.0.brand', 'SONY')
+            ->assertJsonPath('products.0.category', 'AC-Adapter')
+            ->assertJsonPath('products.0.source', 'eed-test')
+            ->assertJsonPath('products.0.price', 28.05)
+            ->assertJsonPath('meta.gateway', 'eed-vpn-captured')
+            ->assertJsonPath('meta.live_error', 'missing_eed_id')
             ->assertJsonPath('meta.has_more', true)
             ->assertJsonPath('meta.cache_hit', false);
 
-        $this->getJson('/api/catalog/external-search?q=phone&per_page=4')
+        $this->getJson('/api/catalog/external-search?q=SONY&per_page=4')
             ->assertOk()
             ->assertJsonPath('meta.cache_hit', true);
 
-        Http::assertSentCount(1);
+        Http::assertNothingSent();
+    }
+
+    public function test_external_product_adapter_uses_session_auto_when_session_is_not_configured(): void
+    {
+        cache()->flush();
+        config([
+            'services.eed.id' => 'demo-id',
+            'services.eed.session_id' => null,
+            'services.eed.shop_url' => 'https://eed.pratikbhujel.com.np',
+        ]);
+
+        Http::fake([
+            'shop.euras.com/eed.php*' => Http::response([
+                'fehlernummer' => '0',
+                'gesamtanzahltreffer' => 1,
+                'treffer' => [
+                    '1' => [
+                        'artikelnummer' => 'R423020',
+                        'artikelbezeichnung' => '149335115 SONY AC-ADAPTER (AC-M1215WW',
+                        'artikelhersteller' => 'SONY',
+                        'vgruppenname' => 'AC-Adapter',
+                        'ekpreis' => '28,05',
+                        'bestellbar' => 'J',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $this->getJson('/api/catalog/external-search?q=SONY&per_page=4')
+            ->assertOk()
+            ->assertJsonPath('products.0.external_id', 'R423020');
+
+        Http::assertSent(function ($request): bool {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+            return ($query['sessionid'] ?? null) === 'auto';
+        });
+    }
+
+    public function test_external_product_adapter_falls_back_to_captured_eed_response_when_live_gateway_fails(): void
+    {
+        cache()->flush();
+        config([
+            'services.eed.id' => 'demo-id',
+            'services.eed.session_id' => 'auto',
+        ]);
+
+        Http::fake([
+            'shop.euras.com/eed.php*' => Http::response('Page not found', 404),
+        ]);
+
+        $this->getJson('/api/catalog/external-search?q=R423020&per_page=4')
+            ->assertOk()
+            ->assertJsonPath('products.0.external_id', 'R423020')
+            ->assertJsonPath('products.0.source', 'eed-test')
+            ->assertJsonPath('meta.gateway', 'eed-vpn-captured')
+            ->assertJsonPath('meta.live_error', 'http_404');
     }
 }

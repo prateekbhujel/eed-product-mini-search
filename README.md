@@ -43,7 +43,7 @@ database/seeders/Catalog/
 
 The demo data is seeded so the app can be reviewed immediately. With real ASWO/EED access, supplier API responses are handled by a gateway, mapped through DTOs, normalized into catalog tables, then pushed into Elasticsearch/OpenSearch when the catalog grows beyond what the database search layer should handle.
 
-The external adapter targets the documented EED `artikelsuche` gateway (`https://shop.euras.com/eed.php`) when `EED_ID` and `EED_SESSION_ID` are configured. Without those credentials, it falls back to DummyJSON only to keep the demo reviewable.
+The external adapter targets the documented EED `artikelsuche` gateway (`https://shop.euras.com/eed.php`) when `EED_ID` is configured. It sends `format=json`, `sessionid=auto` by default, `shopurl`, `customerip`, and maps the EED `treffer` article response through the DTO boundary. When the server cannot reach the EED host, the app keeps review stable with a captured EED test-account response from the same gateway.
 
 ## Local Setup
 
@@ -74,7 +74,7 @@ GET /api/catalog/search?q=DC31-00054A
 GET /api/catalog/search?q=fridge%20shelf
 GET /api/catalog/search?q=pump&brand=Bosch
 GET /api/catalog/products/{slug}
-GET /api/catalog/external-search?q=HDMI%20cable&per_page=4
+GET /api/catalog/external-search?q=SONY&per_page=4
 ```
 
 ## Notes

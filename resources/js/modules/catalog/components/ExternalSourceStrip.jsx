@@ -2,7 +2,11 @@ import { ExternalLink } from 'lucide-react';
 
 export default function ExternalSourceStrip({ data, loading }) {
     const products = data?.products ?? [];
-    const sourceLabel = data?.meta?.gateway === 'eed-fallback' ? 'fallback data' : (data?.source ?? 'supplier');
+    const formatter = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
+    const sourceLabel = {
+        'eed-live': 'EED live',
+        'eed-vpn-captured': 'EED test data',
+    }[data?.meta?.gateway] ?? (data?.source ?? 'supplier');
 
     if (loading) {
         return (
@@ -32,7 +36,7 @@ export default function ExternalSourceStrip({ data, loading }) {
                         <div>
                             <p>{product.category}</p>
                             <h3>{product.name}</h3>
-                            <span>{product.price ? `${product.price} EUR` : 'Price not listed'}</span>
+                            <span>{product.price ? formatter.format(product.price) : 'Price not listed'}</span>
                         </div>
                     </article>
                 ))}

@@ -16,22 +16,7 @@ class ExternalProductData
         public readonly string $source,
     ) {}
 
-    public static function fromDummyJson(array $row): self
-    {
-        return new self(
-            externalId: $row['id'] ?? null,
-            name: $row['title'] ?? 'Untitled product',
-            brand: $row['brand'] ?? null,
-            category: $row['category'] ?? null,
-            price: isset($row['price']) ? (float) $row['price'] : null,
-            imageUrl: $row['thumbnail'] ?? null,
-            rating: isset($row['rating']) ? (float) $row['rating'] : null,
-            stock: isset($row['stock']) ? (int) $row['stock'] : null,
-            source: 'dummyjson',
-        );
-    }
-
-    public static function fromEedArticle(array $row): self
+    public static function fromEedArticle(array $row, string $source = 'eed'): self
     {
         $price = $row['ekpreis']
             ?? $row['vkpreis']
@@ -54,10 +39,10 @@ class ExternalProductData
             brand: $row['artikelhersteller'] ?? $row['hersteller'] ?? $row['manufacturer'] ?? null,
             category: $row['vgruppenname'] ?? $row['warengruppe'] ?? $row['category'] ?? null,
             price: is_numeric($price) ? (float) $price : null,
-            imageUrl: $row['bildurl'] ?? $row['thumbnail'] ?? $row['image_url'] ?? null,
+            imageUrl: $row['thumbnailurl'] ?? $row['bildurl'] ?? $row['thumbnail'] ?? $row['image_url'] ?? null,
             rating: null,
             stock: $stock,
-            source: 'eed',
+            source: $source,
         );
     }
 

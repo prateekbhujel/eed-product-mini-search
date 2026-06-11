@@ -25,7 +25,7 @@ return [
     'eed' => [
         'base_url' => env('EED_BASE_URL', 'https://shop.euras.com/eed.php'),
         'id' => env('EED_ID'),
-        'session_id' => env('EED_SESSION_ID'),
+        'session_id' => env('EED_SESSION_ID', 'auto'),
         'shop_url' => env('EED_SHOP_URL', env('APP_URL')),
         'timeout' => env('EED_TIMEOUT', 8),
     ],
