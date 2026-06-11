@@ -14,7 +14,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { searchCatalog, searchExternalProducts } from './api.js';
 import CartDrawer from './components/CartDrawer.jsx';
 import CategoryMenu from './components/CategoryMenu.jsx';
-import ExternalSourceStrip from './components/ExternalSourceStrip.jsx';
 import FilterPanel from './components/FilterPanel.jsx';
 import HomeCategoryGrid from './components/HomeCategoryGrid.jsx';
 import ProductCard from './components/ProductCard.jsx';
@@ -30,9 +29,10 @@ const initialFilters = {
 
 function filtersFromLocation() {
     const params = new URLSearchParams(window.location.search);
+    const hasFilters = ['q', 'family', 'brand', 'availability'].some((key) => params.has(key));
 
     return {
-        q: params.get('q') ?? '',
+        q: params.get('q') ?? (hasFilters ? '' : 'SONY'),
         family: params.get('family') ?? '',
         brand: params.get('brand') ?? '',
         availability: params.get('availability') ?? '',
@@ -59,6 +59,40 @@ const emptyPagination = {
     next_page: null,
 };
 
+const euroFormatter = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
+
+function normalizeSupplierProduct(product, index) {
+    const priceValue = Number(product.price ?? 0);
+    const externalId = product.external_id ?? `supplier-${index}`;
+
+    return {
+        id: `eed-${externalId}`,
+        is_external: true,
+        source_label: product.source === 'eed' ? 'EED live' : 'EED test',
+        slug: null,
+        sku: String(externalId),
+        name: product.name,
+        brand: product.brand ?? 'Supplier',
+        family: product.category ?? 'Supplier article',
+        category: { short_name: product.category ?? 'EED' },
+        image_url: product.image_url ?? '/catalog-images/cable.svg',
+        identifiers: { oem: [String(externalId)], ean: [] },
+        rating: null,
+        review_count: null,
+        price: {
+            value: Number.isFinite(priceValue) ? priceValue : 0,
+            display: product.price ? euroFormatter.format(product.price) : 'Price not listed',
+            compare_display: null,
+        },
+        availability: {
+            code: product.stock === 0 ? 'backorder' : 'in_stock',
+            label: product.stock === 0 ? 'Check stock' : 'In stock',
+            delivery: 'Supplier delivery',
+            stock: product.stock ?? 1,
+        },
+    };
+}
+
 export default function CatalogApp() {
     const detailSlug = window.location.pathname.match(/^\/products\/([^/]+)/)?.[1] ?? null;
     const [filters, setFilters] = useState(filtersFromLocation);
@@ -72,6 +106,7 @@ export default function CatalogApp() {
     });
     const [page, setPage] = useState(1);
     const [externalData, setExternalData] = useState({ products: [], source: '', meta: {} });
+    const [externalLoadingMore, setExternalLoadingMore] = useState(false);
     const [cartItems, setCartItems] = useState(() => {
         try {
             return JSON.parse(window.localStorage.getItem('e24-cart') ?? '[]');
@@ -89,6 +124,20 @@ export default function CatalogApp() {
     const [accountOpen, setAccountOpen] = useState(false);
     const loadMoreRef = useRef(null);
     const searchRequestRef = useRef(0);
+    const externalRequestRef = useRef(0);
+
+    const supplierSearch = filters.q.trim().length >= 3;
+    const supplierProducts = useMemo(
+        () => (externalData.products ?? []).map(normalizeSupplierProduct),
+        [externalData.products],
+    );
+    const usingSupplierProducts = supplierSearch && supplierProducts.length > 0;
+    const activeProducts = usingSupplierProducts ? supplierProducts : data.products;
+    const activePagination = usingSupplierProducts ? externalData.meta : data.pagination;
+    const activeLoading = supplierSearch
+        ? ((externalLoading && page === 1) || (!usingSupplierProducts && loading))
+        : loading;
+    const activeLoadingMore = usingSupplierProducts ? externalLoadingMore : loadingMore;
 
     useEffect(() => {
         const controller = new AbortController();
@@ -164,43 +213,80 @@ export default function CatalogApp() {
     }, []);
 
     useEffect(() => {
-        if (filters.q.trim().length < 3) {
+        if (! supplierSearch) {
             setExternalData({ products: [], source: '', meta: {} });
             return undefined;
         }
 
         const controller = new AbortController();
-        const timer = window.setTimeout(() => {
+        const requestId = externalRequestRef.current + 1;
+        externalRequestRef.current = requestId;
+
+        if (page === 1) {
+            setExternalData({ products: [], source: '', meta: {} });
             setExternalLoading(true);
-            searchExternalProducts({ q: filters.q, page: 1, per_page: 4 }, controller.signal)
-                .then((payload) => setExternalData(payload))
-                .catch(() => setExternalData({ products: [], source: '', meta: {} }))
-                .finally(() => setExternalLoading(false));
-        }, 520);
+            setExternalLoadingMore(false);
+        } else {
+            setExternalLoadingMore(true);
+        }
+
+        const timer = window.setTimeout(() => {
+            searchExternalProducts({ q: filters.q, page, per_page: 12 }, controller.signal)
+                .then((payload) => {
+                    if (requestId !== externalRequestRef.current) {
+                        return;
+                    }
+
+                    setExternalData((current) => {
+                        if (page === 1) {
+                            return payload;
+                        }
+
+                        const knownIds = new Set((current.products ?? []).map((product) => product.external_id));
+                        const newProducts = (payload.products ?? []).filter((product) => !knownIds.has(product.external_id));
+
+                        return {
+                            ...payload,
+                            products: [...(current.products ?? []), ...newProducts],
+                        };
+                    });
+                })
+                .catch(() => {
+                    if (requestId === externalRequestRef.current) {
+                        setExternalData({ products: [], source: '', meta: {} });
+                    }
+                })
+                .finally(() => {
+                    if (requestId === externalRequestRef.current) {
+                        setExternalLoading(false);
+                        setExternalLoadingMore(false);
+                    }
+                });
+        }, page === 1 ? 420 : 80);
 
         return () => {
             window.clearTimeout(timer);
             controller.abort();
         };
-    }, [filters.q]);
+    }, [filters.q, page, supplierSearch]);
 
     useEffect(() => {
         const target = loadMoreRef.current;
 
-        if (!target || !data.pagination?.has_more || loading || loadingMore) {
+        if (!target || !activePagination?.has_more || activeLoading || activeLoadingMore) {
             return undefined;
         }
 
         const observer = new IntersectionObserver((entries) => {
             if (entries.some((entry) => entry.isIntersecting)) {
-                setPage(data.pagination.next_page);
+                setPage(activePagination.next_page);
             }
         }, { rootMargin: '420px 0px' });
 
         observer.observe(target);
 
         return () => observer.disconnect();
-    }, [data.pagination?.has_more, data.pagination?.next_page, loading, loadingMore]);
+    }, [activePagination?.has_more, activePagination?.next_page, activeLoading, activeLoadingMore]);
 
     useEffect(() => {
         window.localStorage.setItem('e24-cart', JSON.stringify(cartItems));
@@ -231,6 +317,14 @@ export default function CatalogApp() {
 
         return 'Recommended appliance parts';
     }, [filters.brand, filters.family, filters.q]);
+
+    const activeResultTitle = usingSupplierProducts
+        ? `EED supplier results matching "${filters.q}"`
+        : resultTitle;
+
+    const resultCountLabel = usingSupplierProducts
+        ? `${externalData.meta?.total ?? supplierProducts.length} EED results`
+        : `${data.meta?.result_count ?? 0} results`;
 
     function prepareFreshSearch() {
         setLoading(true);
@@ -344,7 +438,7 @@ export default function CatalogApp() {
         'Door seal',
     ];
 
-    const canLoadMore = Boolean(data.pagination?.has_more && data.pagination?.next_page);
+    const canLoadMore = Boolean(activePagination?.has_more && activePagination?.next_page);
     const showHomeBrowse = !detailSlug && activeFilterCount === 0 && !loading && data.products.length > 0;
 
     return (
@@ -493,8 +587,8 @@ export default function CatalogApp() {
 
                     <div className="result-head">
                         <div>
-                            <p>{loading ? 'Searching catalog...' : `${data.meta?.result_count ?? 0} results`}</p>
-                            <h1>{resultTitle}</h1>
+                            <p>{activeLoading ? 'Searching catalog...' : resultCountLabel}</p>
+                            <h1>{activeResultTitle}</h1>
                         </div>
                         <div className="result-actions">
                             <button className="reset-button" type="button" onClick={resetFilters} disabled={activeFilterCount === 0}>
@@ -519,26 +613,25 @@ export default function CatalogApp() {
                             {'?'}
                         </div>
                     )}
-                    <ExternalSourceStrip data={externalData} loading={externalLoading} />
 
                     {error && <div className="alert">{error}</div>}
 
-                    {loading ? (
+                    {activeLoading ? (
                         <div className="product-grid" aria-busy="true">
                             {Array.from({ length: 8 }).map((_, index) => (
                                 <div className="product-card skeleton-card" key={index} />
                             ))}
                         </div>
-                    ) : data.products.length > 0 ? (
+                    ) : activeProducts.length > 0 ? (
                         <div className="product-grid">
-                            {data.products.map((product) => (
+                            {activeProducts.map((product) => (
                                 <ProductCard
                                     key={product.id}
                                     product={product}
                                     onAddToCart={addToCart}
                                 />
                             ))}
-                            {loadingMore && Array.from({ length: 4 }).map((_, index) => (
+                            {activeLoadingMore && Array.from({ length: 4 }).map((_, index) => (
                                 <div className="product-card skeleton-card" key={`page-${page}-${index}`} />
                             ))}
                         </div>
@@ -552,8 +645,8 @@ export default function CatalogApp() {
 
                     {canLoadMore && (
                         <div className="load-more-row" ref={loadMoreRef}>
-                            <button type="button" onClick={() => setPage(data.pagination.next_page)} disabled={loadingMore}>
-                                {loadingMore ? 'Loading...' : 'Load more'}
+                            <button type="button" onClick={() => setPage(activePagination.next_page)} disabled={activeLoadingMore}>
+                                {activeLoadingMore ? 'Loading...' : 'Load more'}
                             </button>
                         </div>
                     )}

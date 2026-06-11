@@ -5,7 +5,7 @@ export default function CartDrawer({ open, items, onClose, onQtyChange, onRemove
         return null;
     }
 
-    const subtotal = items.reduce((total, item) => total + Number(item.product.price.value) * item.qty, 0);
+    const subtotal = items.reduce((total, item) => total + Number(item.product.price?.value ?? 0) * item.qty, 0);
     const itemCount = items.reduce((total, item) => total + item.qty, 0);
 
     return (
@@ -35,7 +35,11 @@ export default function CartDrawer({ open, items, onClose, onQtyChange, onRemove
                                 <article className="cart-line" key={item.product.id}>
                                     <img src={item.product.image_url} alt="" />
                                     <div>
-                                        <a href={`/products/${item.product.slug}`}>{item.product.name}</a>
+                                        {item.product.slug ? (
+                                            <a href={`/products/${item.product.slug}`}>{item.product.name}</a>
+                                        ) : (
+                                            <strong>{item.product.name}</strong>
+                                        )}
                                         <span>{item.product.brand} | {item.product.sku}</span>
                                         <strong>{item.product.price.display}</strong>
                                         <div className="qty-stepper" aria-label={`Quantity for ${item.product.name}`}>

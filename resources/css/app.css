@@ -742,6 +742,10 @@ a:focus-visible {
     text-align: left;
 }
 
+.product-main.is-static {
+    cursor: default;
+}
+
 .image-box {
     display: grid;
     width: 100%;
@@ -792,6 +796,19 @@ a:focus-visible {
 .rating-row {
     color: var(--color-muted);
     font-size: 12px;
+}
+
+.supplier-row {
+    justify-content: space-between;
+    min-width: 0;
+    color: var(--color-link);
+    font-weight: 800;
+}
+
+.supplier-row span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .stars {
@@ -890,6 +907,10 @@ a:focus-visible {
     background: transparent;
     color: var(--color-link);
     padding: 0;
+}
+
+.text-link.is-muted {
+    color: var(--color-muted);
 }
 
 .skeleton-card {
