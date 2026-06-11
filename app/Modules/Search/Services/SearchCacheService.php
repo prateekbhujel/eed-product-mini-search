@@ -11,7 +11,7 @@ class SearchCacheService
     {
         ksort($filters);
 
-        return 'catalog.search.v4.'.sha1(json_encode($filters, JSON_THROW_ON_ERROR));
+        return 'catalog.search.v5.'.sha1(json_encode($filters, JSON_THROW_ON_ERROR));
     }
 
     public function remember(string $key, int $seconds, Closure $callback): array

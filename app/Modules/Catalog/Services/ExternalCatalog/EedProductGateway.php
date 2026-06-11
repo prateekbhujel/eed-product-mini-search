@@ -9,11 +9,17 @@ use Illuminate\Support\Str;
 
 class EedProductGateway implements SupplierProductGateway
 {
+    private const REVIEW_QUERIES = ['AEG', 'SONY', 'HDMI'];
+
     public function search(string $query, int $page = 1, int $perPage = 8, ?string $visitorIp = null): array
     {
         $query = trim($query);
         $page = max(1, $page);
         $perPage = min(20, max(4, $perPage));
+
+        if ($query === '') {
+            return $this->searchReviewCatalog($page, $perPage, $visitorIp);
+        }
 
         $keyword = $this->eedKeyword($query);
 
@@ -50,7 +56,7 @@ class EedProductGateway implements SupplierProductGateway
 
         $rows = collect($this->articleRows($body));
         $products = $rows
-            ->map(fn (array $row): array => ExternalProductData::fromEedArticle($row)->toArray())
+            ->map(fn (array $row): array => $this->presentArticle($row, 'eed', $query))
             ->values()
             ->all();
         $total = $this->totalCount($body, $products);
@@ -73,6 +79,43 @@ class EedProductGateway implements SupplierProductGateway
     private function hasCredentials(): bool
     {
         return filled(config('services.eed.id'));
+    }
+
+    private function searchReviewCatalog(int $page, int $perPage, ?string $visitorIp): array
+    {
+        $perQuery = max(4, (int) ceil($perPage / count(self::REVIEW_QUERIES)));
+        $payloads = collect(self::REVIEW_QUERIES)
+            ->map(fn (string $query): array => $this->search($query, $page, $perQuery, $visitorIp));
+
+        $products = $payloads
+            ->flatMap(fn (array $payload): array => $payload['products'] ?? [])
+            ->unique('external_id')
+            ->take($perPage)
+            ->values()
+            ->all();
+        $total = $payloads->sum(fn (array $payload): int => (int) ($payload['meta']['total'] ?? 0));
+
+        return [
+            'products' => $products,
+            'source' => 'eed',
+            'meta' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'has_more' => $page * $perPage < $total,
+                'next_page' => $page * $perPage < $total ? $page + 1 : null,
+                'gateway' => 'eed-live',
+                'review_queries' => self::REVIEW_QUERIES,
+            ],
+        ];
+    }
+
+    private function presentArticle(array $row, string $source, string $sourceQuery): array
+    {
+        $product = ExternalProductData::fromEedArticle($row, $source)->toArray();
+        $product['source_query'] = $sourceQuery;
+
+        return $product;
     }
 
     private function queryParams(string $keyword, int $page, int $perPage, ?string $visitorIp): array
@@ -190,7 +233,7 @@ class EedProductGateway implements SupplierProductGateway
         $total = $rows->count();
         $products = $rows
             ->forPage($page, $perPage)
-            ->map(fn (array $row): array => ExternalProductData::fromEedArticle($row, 'eed-test')->toArray())
+            ->map(fn (array $row): array => $this->presentArticle($row, 'eed-test', $query))
             ->values()
             ->all();
 

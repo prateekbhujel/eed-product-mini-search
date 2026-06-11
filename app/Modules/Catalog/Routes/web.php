@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', CatalogPageController::class)->name('catalog.index');
 Route::get('/sitemap.xml', CatalogSitemapController::class)->name('catalog.sitemap');
 Route::get('/products/{product:slug}', CatalogPageController::class)->name('catalog.products.page');
+Route::get('/eed-products/{articleNumber}', CatalogPageController::class)->name('catalog.external-products.page');
 
 Route::prefix('api/catalog')->name('catalog.')->middleware('throttle:catalog-search')->group(function (): void {
     Route::get('/search', [ProductSearchController::class, 'search'])->name('search');

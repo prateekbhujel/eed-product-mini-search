@@ -2,7 +2,8 @@ import { CheckCircle2, ShoppingCart, Star } from 'lucide-react';
 
 export default function ProductCard({ product, onAddToCart }) {
     const oem = product.identifiers?.oem?.slice(0, 2) ?? [];
-    const hasDetailPage = Boolean(product.slug);
+    const detailUrl = product.detail_url ?? (product.slug ? `/products/${product.slug}` : null);
+    const hasDetailPage = Boolean(detailUrl);
     const hasRating = Number.isFinite(product.rating);
     const header = (
         <>
@@ -19,7 +20,7 @@ export default function ProductCard({ product, onAddToCart }) {
     return (
         <article className="product-card">
             {hasDetailPage ? (
-                <a className="product-main" href={`/products/${product.slug}`}>
+                <a className="product-main" href={detailUrl}>
                     {header}
                 </a>
             ) : (
@@ -64,7 +65,7 @@ export default function ProductCard({ product, onAddToCart }) {
 
             <div className="card-actions">
                 {hasDetailPage ? (
-                    <a className="text-link" href={`/products/${product.slug}`}>View details</a>
+                    <a className="text-link" href={detailUrl}>View details</a>
                 ) : (
                     <span className="text-link is-muted">EED item</span>
                 )}

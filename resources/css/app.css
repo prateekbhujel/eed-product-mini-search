@@ -1270,6 +1270,25 @@ a:focus-visible {
     color: var(--color-link);
 }
 
+.supplier-proof {
+    display: grid;
+    gap: 2px;
+    border: 1px solid var(--color-line);
+    border-radius: 6px;
+    background: #f8fafc;
+    padding: 10px;
+}
+
+.supplier-proof strong {
+    color: var(--color-link);
+    font-size: 13px;
+}
+
+.supplier-proof span {
+    color: var(--color-muted);
+    font-size: 13px;
+}
+
 .detail-description {
     margin: 0;
     color: #29323a;

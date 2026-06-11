@@ -19,6 +19,8 @@ import HomeCategoryGrid from './components/HomeCategoryGrid.jsx';
 import ProductCard from './components/ProductCard.jsx';
 import ProductDetailPage from './components/ProductDetailPage.jsx';
 import SuggestionStrip from './components/SuggestionStrip.jsx';
+import ExternalProductDetailPage from './components/ExternalProductDetailPage.jsx';
+import { normalizeSupplierProduct } from './productMappers.js';
 
 const initialFilters = {
     q: '',
@@ -29,10 +31,9 @@ const initialFilters = {
 
 function filtersFromLocation() {
     const params = new URLSearchParams(window.location.search);
-    const hasFilters = ['q', 'family', 'brand', 'availability'].some((key) => params.has(key));
 
     return {
-        q: params.get('q') ?? (hasFilters ? '' : 'SONY'),
+        q: params.get('q') ?? '',
         family: params.get('family') ?? '',
         brand: params.get('brand') ?? '',
         availability: params.get('availability') ?? '',
@@ -59,42 +60,9 @@ const emptyPagination = {
     next_page: null,
 };
 
-const euroFormatter = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
-
-function normalizeSupplierProduct(product, index) {
-    const priceValue = Number(product.price ?? 0);
-    const externalId = product.external_id ?? `supplier-${index}`;
-
-    return {
-        id: `eed-${externalId}`,
-        is_external: true,
-        source_label: product.source === 'eed' ? 'EED live' : 'EED test',
-        slug: null,
-        sku: String(externalId),
-        name: product.name,
-        brand: product.brand ?? 'Supplier',
-        family: product.category ?? 'Supplier article',
-        category: { short_name: product.category ?? 'EED' },
-        image_url: product.image_url ?? '/catalog-images/cable.svg',
-        identifiers: { oem: [String(externalId)], ean: [] },
-        rating: null,
-        review_count: null,
-        price: {
-            value: Number.isFinite(priceValue) ? priceValue : 0,
-            display: product.price ? euroFormatter.format(product.price) : 'Price not listed',
-            compare_display: null,
-        },
-        availability: {
-            code: product.stock === 0 ? 'backorder' : 'in_stock',
-            label: product.stock === 0 ? 'Check stock' : 'In stock',
-            delivery: 'Supplier delivery',
-            stock: product.stock ?? 1,
-        },
-    };
-}
-
 export default function CatalogApp() {
     const detailSlug = window.location.pathname.match(/^\/products\/([^/]+)/)?.[1] ?? null;
+    const externalArticleNumber = window.location.pathname.match(/^\/eed-products\/([^/]+)/)?.[1] ?? null;
     const [filters, setFilters] = useState(filtersFromLocation);
     const [data, setData] = useState({
         products: [],
@@ -126,10 +94,12 @@ export default function CatalogApp() {
     const searchRequestRef = useRef(0);
     const externalRequestRef = useRef(0);
 
-    const supplierSearch = filters.q.trim().length >= 3;
+    const hasFilters = Boolean(filters.q.trim() || filters.family || filters.brand || filters.availability);
+    const supplierBrowse = !detailSlug && !externalArticleNumber && !hasFilters;
+    const supplierSearch = filters.q.trim().length >= 3 || supplierBrowse;
     const supplierProducts = useMemo(
-        () => (externalData.products ?? []).map(normalizeSupplierProduct),
-        [externalData.products],
+        () => (externalData.products ?? []).map((product, index) => normalizeSupplierProduct(product, index, filters.q)),
+        [externalData.products, filters.q],
     );
     const usingSupplierProducts = supplierSearch && supplierProducts.length > 0;
     const activeProducts = usingSupplierProducts ? supplierProducts : data.products;
@@ -319,7 +289,7 @@ export default function CatalogApp() {
     }, [filters.brand, filters.family, filters.q]);
 
     const activeResultTitle = usingSupplierProducts
-        ? `EED supplier results matching "${filters.q}"`
+        ? (filters.q ? `EED supplier results matching "${filters.q}"` : 'Live EED supplier catalog')
         : resultTitle;
 
     const resultCountLabel = usingSupplierProducts
@@ -558,6 +528,12 @@ export default function CatalogApp() {
 
             {detailSlug ? (
                 <ProductDetailPage slug={decodeURIComponent(detailSlug)} onAddToCart={addToCart} />
+            ) : externalArticleNumber ? (
+                <ExternalProductDetailPage
+                    articleNumber={decodeURIComponent(externalArticleNumber)}
+                    query={filters.q}
+                    onAddToCart={addToCart}
+                />
             ) : (
             <main className={`catalog-shell market-layout ${showHomeBrowse ? 'is-home' : ''}`}>
                 <aside className={`filter-sheet ${filtersOpen ? 'is-open' : ''}`}>
