@@ -10,6 +10,7 @@ import {
 import { useEffect, useState } from 'react';
 import { getProduct, searchCatalog } from '../api.js';
 import ProductCard from './ProductCard.jsx';
+import ProductGallery from './ProductGallery.jsx';
 
 export default function ProductDetailPage({ slug, onAddToCart }) {
     const [product, setProduct] = useState(null);
@@ -83,9 +84,7 @@ export default function ProductDetailPage({ slug, onAddToCart }) {
             </a>
 
             <section className="product-detail-layout">
-                <div className="detail-gallery">
-                    <img src={product.image_url} alt="" />
-                </div>
+                <ProductGallery product={product} />
 
                 <section className="detail-main">
                     <p className="detail-brand">{product.brand} | {product.category.short_name}</p>

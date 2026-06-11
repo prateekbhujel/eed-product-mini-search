@@ -14,7 +14,8 @@ class ProductSearchController extends Controller
 
     public function search(Request $request): JsonResponse
     {
-        return response()->json($this->search->handle($request->only([
+        return response()
+            ->json($this->search->handle($request->only([
             'q',
             'family',
             'brand',
@@ -22,7 +23,8 @@ class ProductSearchController extends Controller
             'sort',
             'page',
             'per_page',
-        ])));
+            ])))
+            ->header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     }
 
     public function show(string $slug): JsonResponse
@@ -37,8 +39,10 @@ class ProductSearchController extends Controller
             ])
             ->firstOrFail();
 
-        return response()->json([
-            'product' => $this->search->presentProduct($product),
-        ]);
+        return response()
+            ->json([
+                'product' => $this->search->presentProduct($product),
+            ])
+            ->header('Cache-Control', 'public, max-age=300, stale-while-revalidate=900');
     }
 }

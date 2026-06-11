@@ -17,7 +17,7 @@ class ProductSearchTest extends TestCase
 
         $this->get('/')
             ->assertOk()
-            ->assertSee('E24 Spare Parts Search');
+            ->assertSee('E24 Appliance Spare Parts Search');
     }
 
     public function test_search_matches_exact_oem_number(): void
@@ -38,6 +38,27 @@ class ProductSearchTest extends TestCase
             ->assertOk()
             ->assertJsonPath('products.0.family', 'Refrigerator storage')
             ->assertJsonCount(6, 'suggestions');
+    }
+
+    public function test_precise_phrase_search_ranks_matching_parts_first(): void
+    {
+        $this->seed();
+
+        $response = $this->getJson('/api/catalog/search?q=drain%20pump%2030W');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('products.0.family', 'Washing machine pump')
+            ->assertJsonPath('products.0.name', 'Askoll drain pump 30W');
+
+        $families = collect($response->json('products'))
+            ->take(6)
+            ->pluck('family')
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->assertSame(['Washing machine pump'], $families);
     }
 
     public function test_filters_apply_to_ranked_results(): void
@@ -66,6 +87,22 @@ class ProductSearchTest extends TestCase
             ->assertJsonPath('pagination.current_page', 2);
     }
 
+    public function test_demo_seed_has_enough_catalog_rows_for_pagination(): void
+    {
+        $this->seed();
+
+        $this->assertGreaterThanOrEqual(2000, Product::query()->count());
+    }
+
+    public function test_typo_search_returns_did_you_mean(): void
+    {
+        $this->seed();
+
+        $this->getJson('/api/catalog/search?q=wahser%20pmp')
+            ->assertOk()
+            ->assertJsonPath('did_you_mean', 'washer pump');
+    }
+
     public function test_product_detail_page_and_api_include_reviews(): void
     {
         $this->seed();
@@ -74,12 +111,29 @@ class ProductSearchTest extends TestCase
 
         $this->get('/products/'.$product->slug)
             ->assertOk()
-            ->assertSee('E24 Spare Parts Search');
+            ->assertSee('og:type')
+            ->assertSee('application/ld+json')
+            ->assertSee($product->sku);
 
         $this->getJson('/api/catalog/products/'.$product->slug)
             ->assertOk()
             ->assertJsonPath('product.sku', 'E24-PMP-DC310054A')
+            ->assertJsonPath('product.price.display', '€31.40')
+            ->assertJsonPath('product.gallery_urls.0', asset('catalog-images/photos/washing-machine-pump.jpg'))
             ->assertJsonPath('product.reviews.0.verified', true);
+    }
+
+    public function test_sitemap_lists_product_urls(): void
+    {
+        $this->seed();
+
+        $product = Product::query()->where('sku', 'E24-PMP-DC310054A')->firstOrFail();
+
+        $this->get('/sitemap.xml')
+            ->assertOk()
+            ->assertHeader('content-type', 'application/xml; charset=UTF-8')
+            ->assertSee('<urlset', false)
+            ->assertSee(route('catalog.products.page', ['product' => $product->slug]), false);
     }
 
     public function test_external_product_adapter_returns_normalized_products(): void

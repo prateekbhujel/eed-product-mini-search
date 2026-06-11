@@ -1,2 +1,3 @@
 User-agent: *
 Disallow:
+Sitemap: https://eed.pratikbhujel.com.np/sitemap.xml

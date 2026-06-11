@@ -16,6 +16,7 @@ import CartDrawer from './components/CartDrawer.jsx';
 import CategoryMenu from './components/CategoryMenu.jsx';
 import ExternalSourceStrip from './components/ExternalSourceStrip.jsx';
 import FilterPanel from './components/FilterPanel.jsx';
+import HomeCategoryGrid from './components/HomeCategoryGrid.jsx';
 import ProductCard from './components/ProductCard.jsx';
 import ProductDetailPage from './components/ProductDetailPage.jsx';
 import SuggestionStrip from './components/SuggestionStrip.jsx';
@@ -38,6 +39,26 @@ function filtersFromLocation() {
     };
 }
 
+function catalogUrlFromFilters(filters) {
+    const params = new URLSearchParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value) {
+            params.set(key, value);
+        }
+    });
+
+    return `/${params.toString() ? `?${params.toString()}` : ''}`;
+}
+
+const emptyPagination = {
+    current_page: 1,
+    per_page: 12,
+    total: 0,
+    has_more: false,
+    next_page: null,
+};
+
 export default function CatalogApp() {
     const detailSlug = window.location.pathname.match(/^\/products\/([^/]+)/)?.[1] ?? null;
     const [filters, setFilters] = useState(filtersFromLocation);
@@ -45,8 +66,9 @@ export default function CatalogApp() {
         products: [],
         facets: { families: [], brands: [], availability: [], categories: [] },
         suggestions: [],
+        did_you_mean: null,
         meta: { result_count: 0 },
-        pagination: { current_page: 1, per_page: 12, total: 0, has_more: false, next_page: null },
+        pagination: emptyPagination,
     });
     const [page, setPage] = useState(1);
     const [externalData, setExternalData] = useState({ products: [], source: '', meta: {} });
@@ -66,14 +88,35 @@ export default function CatalogApp() {
     const [cartOpen, setCartOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
     const loadMoreRef = useRef(null);
+    const searchRequestRef = useRef(0);
 
     useEffect(() => {
         const controller = new AbortController();
+        const requestId = searchRequestRef.current + 1;
+        searchRequestRef.current = requestId;
+
+        if (page === 1) {
+            setLoading(true);
+            setLoadingMore(false);
+            setData((current) => ({
+                ...current,
+                products: [],
+                suggestions: [],
+                did_you_mean: null,
+                meta: { ...current.meta, result_count: 0 },
+                pagination: emptyPagination,
+            }));
+        } else {
+            setLoadingMore(true);
+        }
+
         const timer = window.setTimeout(() => {
-            setLoading(page === 1);
-            setLoadingMore(page > 1);
             searchCatalog({ ...filters, page, per_page: 12 }, controller.signal)
                 .then((payload) => {
+                    if (requestId !== searchRequestRef.current) {
+                        return;
+                    }
+
                     setData((current) => {
                         if (page === 1) {
                             return payload;
@@ -90,21 +133,35 @@ export default function CatalogApp() {
                     setError('');
                 })
                 .catch((searchError) => {
-                    if (searchError.name !== 'AbortError') {
+                    if (requestId === searchRequestRef.current && searchError.name !== 'AbortError') {
                         setError('Search is temporarily unavailable. Please try again.');
                     }
                 })
                 .finally(() => {
-                    setLoading(false);
-                    setLoadingMore(false);
+                    if (requestId === searchRequestRef.current) {
+                        setLoading(false);
+                        setLoadingMore(false);
+                    }
                 });
-        }, page === 1 ? 420 : 80);
+        }, page === 1 ? 260 : 80);
 
         return () => {
             window.clearTimeout(timer);
             controller.abort();
         };
     }, [filters, page]);
+
+    useEffect(() => {
+        const syncFromUrl = () => {
+            prepareFreshSearch();
+            setPage(1);
+            setFilters(filtersFromLocation());
+        };
+
+        window.addEventListener('popstate', syncFromUrl);
+
+        return () => window.removeEventListener('popstate', syncFromUrl);
+    }, []);
 
     useEffect(() => {
         if (filters.q.trim().length < 3) {
@@ -175,30 +232,62 @@ export default function CatalogApp() {
         return 'Recommended appliance parts';
     }, [filters.brand, filters.family, filters.q]);
 
+    function prepareFreshSearch() {
+        setLoading(true);
+        setLoadingMore(false);
+        setError('');
+        setData((current) => ({
+            ...current,
+            products: [],
+            suggestions: [],
+            did_you_mean: null,
+            meta: { ...current.meta, result_count: 0 },
+            pagination: emptyPagination,
+        }));
+    }
+
     function updateFilter(key, value) {
+        if (filters[key] === value && page === 1) {
+            return;
+        }
+
+        prepareFreshSearch();
         setPage(1);
         setFilters((current) => ({ ...current, [key]: value }));
     }
 
     function resetFilters() {
+        if (activeFilterCount === 0 && page === 1) {
+            return;
+        }
+
+        prepareFreshSearch();
         setPage(1);
         setFilters(initialFilters);
     }
 
     function applySuggestion(value) {
+        prepareFreshSearch();
         setPage(1);
         setFilters((current) => ({ ...current, q: value }));
     }
 
     function submitSearch() {
-        const params = new URLSearchParams();
-        Object.entries(filters).forEach(([key, value]) => {
-            if (value) {
-                params.set(key, value);
-            }
-        });
+        const nextFilters = { ...filters, q: filters.q.trim() };
+        const nextUrl = catalogUrlFromFilters(nextFilters);
 
-        window.location.href = `/${params.toString() ? `?${params.toString()}` : ''}`;
+        if (detailSlug) {
+            window.location.href = nextUrl;
+            return;
+        }
+
+        prepareFreshSearch();
+        setPage(1);
+        setFilters(nextFilters);
+
+        if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+            window.history.pushState({}, '', nextUrl);
+        }
     }
 
     function selectFamily(value) {
@@ -256,6 +345,7 @@ export default function CatalogApp() {
     ];
 
     const canLoadMore = Boolean(data.pagination?.has_more && data.pagination?.next_page);
+    const showHomeBrowse = !detailSlug && activeFilterCount === 0 && !loading && data.products.length > 0;
 
     return (
         <div className="market-page">
@@ -375,7 +465,7 @@ export default function CatalogApp() {
             {detailSlug ? (
                 <ProductDetailPage slug={decodeURIComponent(detailSlug)} onAddToCart={addToCart} />
             ) : (
-            <main className="catalog-shell market-layout">
+            <main className={`catalog-shell market-layout ${showHomeBrowse ? 'is-home' : ''}`}>
                 <aside className={`filter-sheet ${filtersOpen ? 'is-open' : ''}`}>
                     <div className="mobile-sheet-head">
                         <strong>Filters</strong>
@@ -394,6 +484,13 @@ export default function CatalogApp() {
                 {filtersOpen && <button className="sheet-backdrop" type="button" aria-label="Close filters" onClick={() => setFiltersOpen(false)} />}
 
                 <section className="search-workspace">
+                    {showHomeBrowse && (
+                        <HomeCategoryGrid
+                            facets={data.facets}
+                            onSelectFamily={selectFamily}
+                        />
+                    )}
+
                     <div className="result-head">
                         <div>
                             <p>{loading ? 'Searching catalog...' : `${data.meta?.result_count ?? 0} results`}</p>
@@ -413,6 +510,15 @@ export default function CatalogApp() {
                     </div>
 
                     <SuggestionStrip suggestions={data.suggestions} onSelect={applySuggestion} />
+                    {data.did_you_mean && filters.q && (
+                        <div className="did-you-mean">
+                            {'Did you mean '}
+                            <button type="button" onClick={() => applySuggestion(data.did_you_mean)}>
+                                {data.did_you_mean}
+                            </button>
+                            {'?'}
+                        </div>
+                    )}
                     <ExternalSourceStrip data={externalData} loading={externalLoading} />
 
                     {error && <div className="alert">{error}</div>}

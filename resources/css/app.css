@@ -340,6 +340,14 @@ a:focus-visible {
     padding-top: 14px;
 }
 
+.market-layout.is-home {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.market-layout.is-home .filter-sheet {
+    display: none;
+}
+
 .filter-sheet,
 .search-workspace {
     min-width: 0;
@@ -351,6 +359,8 @@ a:focus-visible {
 .alert,
 .external-strip,
 .product-card,
+.home-category-card,
+.did-you-mean,
 .buy-box,
 .reviews-section,
 .related-section,
@@ -439,6 +449,77 @@ a:focus-visible {
     gap: 12px;
 }
 
+.home-category-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.home-category-card {
+    display: grid;
+    align-content: start;
+    gap: 13px;
+    min-height: 318px;
+    padding: 16px;
+}
+
+.home-category-card h2 {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-size: 20px;
+    line-height: 1.18;
+}
+
+.home-category-tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 10px;
+}
+
+.home-category-tiles button {
+    display: grid;
+    align-content: start;
+    gap: 5px;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-ink);
+    padding: 0;
+    text-align: left;
+}
+
+.home-category-tiles button:hover span {
+    color: #c7511f;
+    text-decoration: underline;
+}
+
+.home-category-tiles img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: 4px;
+    background: #f7f7f7;
+    object-fit: cover;
+}
+
+.home-category-tiles span,
+.home-category-tiles small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.home-category-tiles span {
+    color: #111827;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.home-category-tiles small {
+    color: var(--color-muted);
+    font-size: 12px;
+}
+
 .result-head {
     display: flex;
     align-items: center;
@@ -522,6 +603,29 @@ a:focus-visible {
 
 .suggestion-strip button:hover {
     background: #eef7f8;
+}
+
+.did-you-mean {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 12px;
+    color: #29323a;
+    font-size: 14px;
+}
+
+.did-you-mean button {
+    border: 0;
+    background: transparent;
+    color: var(--color-link);
+    padding: 0;
+    font-weight: 800;
+}
+
+.did-you-mean button:hover {
+    color: #c7511f;
+    text-decoration: underline;
 }
 
 .external-strip {
@@ -1055,13 +1159,77 @@ a:focus-visible {
 .detail-gallery {
     position: sticky;
     top: 104px;
+    display: grid;
+    gap: 10px;
     padding: 16px;
 }
 
-.detail-gallery img {
+.gallery-frame {
+    position: relative;
+    display: grid;
+    place-items: center;
+    border-radius: 5px;
+    background: #f7f7f7;
+    overflow: hidden;
+}
+
+.gallery-frame > img {
     width: 100%;
     aspect-ratio: 1 / 1;
+    object-fit: cover;
+}
+
+.gallery-nav {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    display: inline-grid;
+    width: 34px;
+    height: 44px;
+    place-items: center;
+    border: 1px solid var(--color-line);
+    border-radius: 4px;
+    background: rgb(255 255 255 / 92%);
+    color: var(--color-ink);
+    transform: translateY(-50%);
+}
+
+.gallery-nav:hover {
+    border-color: #f2a742;
+}
+
+.gallery-nav.is-prev {
+    left: 8px;
+}
+
+.gallery-nav.is-next {
+    right: 8px;
+}
+
+.gallery-thumbs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.gallery-thumbs button {
+    min-width: 0;
+    border: 1px solid var(--color-line);
     border-radius: 5px;
+    background: #ffffff;
+    padding: 3px;
+}
+
+.gallery-thumbs button:hover,
+.gallery-thumbs button.is-active {
+    border-color: #f2a742;
+    box-shadow: 0 0 0 2px rgb(254 189 105 / 28%);
+}
+
+.gallery-thumbs img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 3px;
     background: #f7f7f7;
     object-fit: cover;
 }
@@ -1263,6 +1431,10 @@ a:focus-visible {
         grid-template-columns: auto auto minmax(220px, 1fr) auto auto;
     }
 
+    .home-category-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .ship-line {
         display: none;
     }
@@ -1304,6 +1476,10 @@ a:focus-visible {
     .market-layout {
         display: block;
         padding-top: 10px;
+    }
+
+    .market-layout.is-home .filter-sheet {
+        display: block;
     }
 
     .filter-sheet {
@@ -1405,6 +1581,14 @@ a:focus-visible {
 
     .result-head {
         display: grid;
+    }
+
+    .home-category-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .home-category-card {
+        min-height: 0;
     }
 
     .result-actions {

@@ -7,7 +7,7 @@ export default function ProductCard({ product, onAddToCart }) {
         <article className="product-card">
             <a className="product-main" href={`/products/${product.slug}`}>
                 <span className="image-box">
-                    <img src={product.image_url} alt="" loading="lazy" />
+                    <img src={product.image_url} alt="" loading="lazy" decoding="async" />
                 </span>
                 <div>
                     <p className="card-kicker">{product.brand} | {product.category.short_name}</p>

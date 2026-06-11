@@ -14,6 +14,8 @@ use Illuminate\Support\Str;
 
 class CatalogDemoSeeder extends Seeder
 {
+    private const GENERATED_PRODUCT_COUNT = 2400;
+
     public function run(): void
     {
         DB::transaction(function (): void {
@@ -32,7 +34,7 @@ class CatalogDemoSeeder extends Seeder
             $categories = $this->seedCategories();
             $this->seedSynonyms();
 
-            foreach ($this->products() as $row) {
+            foreach ($this->catalogRows() as $row) {
                 $category = $categories[$row['category']];
                 $product = Product::query()->updateOrCreate(
                     ['sku' => $row['sku']],
@@ -65,6 +67,8 @@ class CatalogDemoSeeder extends Seeder
                 $this->replaceModels($product, $row['models']);
                 $this->replaceReviews($product);
             }
+
+            cache()->forget('catalog.facets.v1');
         });
     }
 
@@ -124,8 +128,10 @@ class CatalogDemoSeeder extends Seeder
     {
         $rows = [
             ['washer', 'washing machine', 40],
+            ['washer pump', 'washing machine drain pump', 42],
             ['washing pump', 'washing machine drain pump', 38],
             ['fridge', 'refrigerator', 40],
+            ['fridge shelf', 'refrigerator glass shelf', 36],
             ['freezer box', 'refrigerator drawer', 30],
             ['shelf', 'drawer storage tray', 24],
             ['hoover', 'vacuum cleaner', 32],
@@ -225,6 +231,121 @@ class CatalogDemoSeeder extends Seeder
     private function compact(string $value): string
     {
         return preg_replace('/[^a-z0-9]/', '', Str::lower(Str::ascii($value))) ?? '';
+    }
+
+    private function catalogRows(): array
+    {
+        $baseRows = $this->products();
+
+        return [
+            ...$baseRows,
+            ...$this->generatedProducts($baseRows, self::GENERATED_PRODUCT_COUNT),
+        ];
+    }
+
+    private function generatedProducts(array $baseRows, int $count): array
+    {
+        $brands = [
+            'AEG', 'Beko', 'Bosch', 'Candy', 'DeLonghi', 'Dyson', 'Electrolux', 'Gorenje',
+            'Hoover', 'Hotpoint', 'Indesit', 'LG', 'Liebherr', 'Miele', 'Neff', 'Philips',
+            'Samsung', 'Siemens', 'Sony', 'Whirlpool', 'Zanussi',
+        ];
+        $series = ['Classic', 'Pro', 'Eco', 'Max', 'Compact', 'Plus', 'Serie 4', 'Serie 6', 'HomeLine', 'Select'];
+        $states = ['in_stock', 'in_stock', 'in_stock', 'low_stock', 'backorder', 'preorder'];
+        $rows = [];
+
+        for ($i = 1; $i <= $count; $i++) {
+            $base = $baseRows[($i - 1) % count($baseRows)];
+            $brand = $brands[$i % count($brands)];
+            $line = $series[$i % count($series)];
+            $availability = $states[$i % count($states)];
+            $sku = 'E24-DMO-'.str_pad((string) $i, 5, '0', STR_PAD_LEFT);
+            $oem = strtoupper(substr($this->compact($brand.$base['family']), 0, 4)).'-'.str_pad((string) ($i * 37), 7, '0', STR_PAD_LEFT);
+            $modelPrefix = strtoupper(substr($this->compact($base['family']), 0, 3));
+            $stock = $this->stockFor($availability, $i);
+            $price = round(max(4.9, ((float) $base['price'] * (0.82 + (($i % 29) / 100))) + (($i % 7) * 0.45)), 2);
+
+            $rows[] = [
+                'sku' => $sku,
+                'brand' => $brand,
+                'name' => $this->variantName($base['name'], $line, $i),
+                'family' => $base['family'],
+                'category' => $base['category'],
+                'description' => $this->variantName($base['name'], $line, $i).' for compatible '.$brand.' appliance models. Match by OEM number or model before ordering.',
+                'price' => $price,
+                'compare_price' => $i % 5 === 0 ? round($price * 1.18, 2) : null,
+                'availability' => $availability,
+                'stock' => $stock,
+                'delivery_text' => $this->deliveryText($availability),
+                'delivery_days' => $this->deliveryDays($availability, $i),
+                'rating' => $this->rating($sku),
+                'review_count' => $this->reviewCount($sku),
+                'image_path' => $base['image_path'],
+                'keywords' => trim($base['keywords'].' '.$brand.' '.$line.' '.$base['family'].' appliance spare part '.$oem),
+                'specs' => [
+                    'Main spec' => $base['specs']['Main spec'] ?? $line,
+                    'Fitment' => $base['specs']['Fitment'] ?? 'Model specific',
+                    'Note' => $base['specs']['Note'] ?? 'Check model plate before ordering',
+                ],
+                'identifiers' => [
+                    'oem' => [$oem, 'OEM'.str_pad((string) ($i + 100000), 8, '0', STR_PAD_LEFT)],
+                    'article' => [$sku],
+                    'ean' => [$this->ean($sku)],
+                ],
+                'models' => [
+                    $modelPrefix.'-'.$brand[0].str_pad((string) ($i % 9000), 4, '0', STR_PAD_LEFT),
+                    $modelPrefix.'-'.$line[0].str_pad((string) (($i * 3) % 9000), 4, '0', STR_PAD_LEFT),
+                    $modelPrefix.'-'.str_pad((string) (($i * 7) % 9000), 4, '0', STR_PAD_LEFT),
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function variantName(string $name, string $line, int $index): string
+    {
+        $suffix = match ($index % 6) {
+            0 => 'kit',
+            1 => 'replacement',
+            2 => 'service pack',
+            3 => 'assembly',
+            4 => 'compatible part',
+            default => 'unit',
+        };
+
+        return $name.' '.$line.' '.$suffix;
+    }
+
+    private function stockFor(string $availability, int $index): int
+    {
+        return match ($availability) {
+            'in_stock' => 8 + ($index % 55),
+            'low_stock' => 1 + ($index % 5),
+            default => 0,
+        };
+    }
+
+    private function deliveryText(string $availability): string
+    {
+        return match ($availability) {
+            'in_stock' => 'Ready to ship',
+            'low_stock' => 'Only a few left',
+            'preorder' => 'Preorder item',
+            'backorder' => 'Backorder available',
+            default => 'Check availability',
+        };
+    }
+
+    private function deliveryDays(string $availability, int $index): int
+    {
+        return match ($availability) {
+            'in_stock' => 1 + ($index % 2),
+            'low_stock' => 2,
+            'preorder' => 7 + ($index % 3),
+            'backorder' => 5 + ($index % 4),
+            default => 4,
+        };
     }
 
     private function products(): array

@@ -40,6 +40,7 @@ class CatalogSearchService
                 'products' => $items,
                 'facets' => $this->products->facets(),
                 'suggestions' => $this->suggestions($filters['q'] ?? '', $items),
+                'did_you_mean' => $this->didYouMean($filters['q'] ?? '', $total),
                 'pagination' => [
                     'current_page' => $page,
                     'per_page' => $perPage,
@@ -78,9 +79,9 @@ class CatalogSearchService
             ],
             'price' => [
                 'value' => number_format((float) $product->price, 2, '.', ''),
-                'display' => number_format((float) $product->price, 2, ',', '.').' '.$product->currency,
+                'display' => '€'.number_format((float) $product->price, 2, '.', ','),
                 'compare_display' => $product->compare_price
-                    ? number_format((float) $product->compare_price, 2, ',', '.').' '.$product->currency
+                    ? '€'.number_format((float) $product->compare_price, 2, '.', ',')
                     : null,
             ],
             'availability' => [
@@ -91,7 +92,8 @@ class CatalogSearchService
             ],
             'rating' => round((float) $product->rating, 1),
             'review_count' => $product->review_count,
-            'image_url' => $product->image_path ? asset($product->image_path) : null,
+            'image_url' => $this->galleryUrls($product)[0] ?? null,
+            'gallery_urls' => $this->galleryUrls($product),
             'identifiers' => $product->identifiers
                 ->groupBy('type')
                 ->map(fn ($items) => $items->pluck('value')->values()->all())
@@ -118,6 +120,39 @@ class CatalogSearchService
                 : [],
             'score' => $score,
         ];
+    }
+
+    private function galleryUrls(Product $product): array
+    {
+        return collect([
+            $this->photoPath($product),
+            $product->image_path,
+            $this->secondaryPhotoPath($product),
+        ])
+            ->filter()
+            ->unique()
+            ->map(fn (string $path): string => asset($path))
+            ->values()
+            ->all();
+    }
+
+    private function photoPath(Product $product): ?string
+    {
+        return match ($product->family) {
+            'Washing machine pump' => 'catalog-images/photos/washing-machine-pump.jpg',
+            'Dishwasher heater', 'Oven heating element' => 'catalog-images/photos/washing-machine-heater.jpg',
+            'Thermostat and sensor', 'Door lock and switch' => 'catalog-images/photos/heater-parts.jpg',
+            default => null,
+        };
+    }
+
+    private function secondaryPhotoPath(Product $product): ?string
+    {
+        return match ($product->family) {
+            'Dishwasher heater', 'Oven heating element' => 'catalog-images/photos/heater-parts.jpg',
+            'Washing machine pump' => 'catalog-images/photos/washing-machine-heater.jpg',
+            default => null,
+        };
     }
 
     private function cleanFilters(array $filters): array
@@ -163,6 +198,80 @@ class CatalogSearchService
             ->map(fn (string $replacement): string => $this->normalizer->normalize($replacement))
             ->flatMap(fn (string $replacement): array => $this->normalizer->tokens($replacement))
             ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function didYouMean(?string $query, int $total): ?string
+    {
+        $normalized = $this->normalizer->normalize($query);
+
+        if ($normalized === '' || strlen($normalized) < 4) {
+            return null;
+        }
+
+        $limit = max(2, (int) floor(strlen($normalized) / 3));
+        $compactQuery = $this->normalizer->compact($normalized);
+        $best = null;
+        $bestDistance = PHP_INT_MAX;
+
+        foreach ($this->suggestionCandidates() as $candidate) {
+            $candidateNormalized = $this->normalizer->normalize($candidate);
+
+            if ($candidateNormalized === '' || $candidateNormalized === $normalized) {
+                continue;
+            }
+
+            $distance = min(
+                levenshtein($normalized, $candidateNormalized),
+                levenshtein($compactQuery, $this->normalizer->compact($candidateNormalized)),
+            );
+
+            if ($distance < $bestDistance) {
+                $best = $candidate;
+                $bestDistance = $distance;
+            }
+        }
+
+        if ($best === null || $bestDistance > $limit) {
+            return null;
+        }
+
+        return $total <= 20 || $bestDistance <= 2 ? $best : null;
+    }
+
+    private function suggestionCandidates(): array
+    {
+        $synonyms = SearchSynonym::query()
+            ->get(['term', 'replacement'])
+            ->flatMap(fn (SearchSynonym $synonym): array => [$synonym->term, $synonym->replacement])
+            ->all();
+
+        $catalogTerms = Product::query()
+            ->where('is_active', true)
+            ->select(['brand', 'family'])
+            ->distinct()
+            ->limit(250)
+            ->get()
+            ->flatMap(fn (Product $product): array => [$product->brand, $product->family])
+            ->all();
+
+        return collect([
+            'washer pump',
+            'washing machine pump',
+            'fridge shelf',
+            'refrigerator drawer',
+            'vacuum filter',
+            'door seal',
+            'oven element',
+            'dishwasher heater',
+            'dryer belt',
+            'remote control',
+            ...$synonyms,
+            ...$catalogTerms,
+        ])
+            ->filter()
+            ->unique(fn (string $value): string => $this->normalizer->normalize($value))
             ->values()
             ->all();
     }
