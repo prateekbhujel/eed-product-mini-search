@@ -22,6 +22,14 @@ return [
         'key' => env('RESEND_API_KEY'),
     ],
 
+    'eed' => [
+        'base_url' => env('EED_BASE_URL', 'https://shop.euras.com/eed.php'),
+        'id' => env('EED_ID'),
+        'session_id' => env('EED_SESSION_ID'),
+        'shop_url' => env('EED_SHOP_URL', env('APP_URL')),
+        'timeout' => env('EED_TIMEOUT', 8),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

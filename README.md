@@ -13,7 +13,7 @@ The app focuses on the parts of the platform that matter early: catalog modeling
 - Paginated search API with frontend debounce, request cancellation, load-more/infinite-scroll continuation, and API rate limiting.
 - Synonyms for searches such as `washer`, `fridge`, `hoover`, `door rubber`, `coffee pump`, and `shelf`.
 - Hot query caching through Laravel's database cache store using a separate SQLite connection when Redis is not available on shared hosting.
-- External product gateway example using a DTO boundary, so supplier responses can be normalized before entering the catalog layer.
+- EED-shaped supplier gateway with a DTO boundary, so supplier responses can be normalized before entering the catalog layer.
 
 ## Architecture
 
@@ -41,9 +41,9 @@ database/seeders/Catalog/
   CatalogDemoSeeder.php
 ```
 
-The demo data is seeded so the app can be reviewed immediately. With real ASWO/EED access, supplier API responses would be handled by a gateway, mapped through DTOs, normalized into catalog tables, then pushed into Elasticsearch/OpenSearch when the catalog grows beyond what the database search layer should handle.
+The demo data is seeded so the app can be reviewed immediately. With real ASWO/EED access, supplier API responses are handled by a gateway, mapped through DTOs, normalized into catalog tables, then pushed into Elasticsearch/OpenSearch when the catalog grows beyond what the database search layer should handle.
 
-The public external source currently uses DummyJSON because it provides free product search with pagination and no login. It is not a spare-parts supplier. It exists here to show the adapter/cache shape while the real ASWO/EED credentials or reachable test gateway are unavailable.
+The external adapter targets the documented EED `artikelsuche` gateway (`https://shop.euras.com/eed.php`) when `EED_ID` and `EED_SESSION_ID` are configured. Without those credentials, it falls back to DummyJSON only to keep the demo reviewable.
 
 ## Local Setup
 
@@ -74,7 +74,7 @@ GET /api/catalog/search?q=DC31-00054A
 GET /api/catalog/search?q=fridge%20shelf
 GET /api/catalog/search?q=pump&brand=Bosch
 GET /api/catalog/products/{slug}
-GET /api/catalog/external-search?q=phone&per_page=4
+GET /api/catalog/external-search?q=HDMI%20cable&per_page=4
 ```
 
 ## Notes

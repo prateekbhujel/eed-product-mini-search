@@ -2,12 +2,13 @@ import { ExternalLink } from 'lucide-react';
 
 export default function ExternalSourceStrip({ data, loading }) {
     const products = data?.products ?? [];
+    const sourceLabel = data?.meta?.gateway === 'eed-fallback' ? 'fallback data' : (data?.source ?? 'supplier');
 
     if (loading) {
         return (
             <section className="external-strip">
                 <div className="external-strip-head">
-                    <h2>External source</h2>
+                    <h2>Supplier adapter</h2>
                     <span>Checking...</span>
                 </div>
             </section>
@@ -21,8 +22,8 @@ export default function ExternalSourceStrip({ data, loading }) {
     return (
         <section className="external-strip">
             <div className="external-strip-head">
-                <h2>External source</h2>
-                <span>{data.source}</span>
+                <h2>Supplier adapter</h2>
+                <span>{sourceLabel}</span>
             </div>
             <div className="external-grid">
                 {products.map((product) => (
@@ -36,9 +37,9 @@ export default function ExternalSourceStrip({ data, loading }) {
                     </article>
                 ))}
             </div>
-            <a className="external-doc-link" href="https://dummyjson.com/docs/products" target="_blank" rel="noreferrer">
+            <a className="external-doc-link" href="https://shop.euras.com/admin/Dok/eed-doku-eng.php" target="_blank" rel="noreferrer">
                 <ExternalLink size={14} aria-hidden="true" />
-                API docs
+                EED docs
             </a>
         </section>
     );

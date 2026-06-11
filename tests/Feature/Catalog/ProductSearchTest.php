@@ -136,9 +136,59 @@ class ProductSearchTest extends TestCase
             ->assertSee(route('catalog.products.page', ['product' => $product->slug]), false);
     }
 
-    public function test_external_product_adapter_returns_normalized_products(): void
+    public function test_external_product_adapter_maps_eed_article_search(): void
     {
         cache()->flush();
+        config([
+            'services.eed.id' => 'demo-id',
+            'services.eed.session_id' => 'demo-session',
+            'services.eed.shop_url' => 'https://eed.pratikbhujel.com.np',
+        ]);
+
+        Http::fake([
+            'shop.euras.com/eed.php*' => Http::response([
+                'gesamtanzahltreffer' => 12,
+                'artikel' => [[
+                    'artikelnummer' => 'Q509827',
+                    'artikelbezeichnung' => 'HDMI cable high speed 2m',
+                    'artikelhersteller' => 'Generic',
+                    'vgruppenname' => 'CABLES',
+                    'ekpreis' => '5,60',
+                    'bildurl' => 'https://example.test/q509827.jpg',
+                    'bestellbar' => 'J',
+                ]],
+            ]),
+        ]);
+
+        $this->getJson('/api/catalog/external-search?q=HDMI%20cable&per_page=4')
+            ->assertOk()
+            ->assertJsonPath('products.0.external_id', 'Q509827')
+            ->assertJsonPath('products.0.name', 'HDMI cable high speed 2m')
+            ->assertJsonPath('products.0.source', 'eed')
+            ->assertJsonPath('products.0.price', 5.6)
+            ->assertJsonPath('meta.gateway', 'eed')
+            ->assertJsonPath('meta.has_more', true);
+
+        Http::assertSent(function ($request): bool {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+            return str_starts_with($request->url(), 'https://shop.euras.com/eed.php?')
+                && ($query['format'] ?? null) === 'json'
+                && ($query['id'] ?? null) === 'demo-id'
+                && ($query['sessionid'] ?? null) === 'demo-session'
+                && ($query['art'] ?? null) === 'artikelsuche'
+                && ($query['suchbg'] ?? null) === 'HDMIcable'
+                && ($query['customerip'] ?? null) === md5('127.0.0.1');
+        });
+    }
+
+    public function test_external_product_adapter_falls_back_without_eed_credentials(): void
+    {
+        cache()->flush();
+        config([
+            'services.eed.id' => null,
+            'services.eed.session_id' => null,
+        ]);
 
         Http::fake([
             'dummyjson.com/products/search*' => Http::response([
@@ -162,6 +212,7 @@ class ProductSearchTest extends TestCase
             ->assertOk()
             ->assertJsonPath('products.0.name', 'Test product')
             ->assertJsonPath('products.0.source', 'dummyjson')
+            ->assertJsonPath('meta.gateway', 'eed-fallback')
             ->assertJsonPath('meta.has_more', true)
             ->assertJsonPath('meta.cache_hit', false);
 

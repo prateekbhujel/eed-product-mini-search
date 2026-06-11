@@ -6,9 +6,9 @@ use App\Modules\Catalog\Data\ExternalProductData;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
-class DummyJsonProductGateway
+class DummyJsonProductGateway implements SupplierProductGateway
 {
-    public function search(string $query, int $page = 1, int $perPage = 8): array
+    public function search(string $query, int $page = 1, int $perPage = 8, ?string $visitorIp = null): array
     {
         $query = trim($query);
         $page = max(1, $page);
