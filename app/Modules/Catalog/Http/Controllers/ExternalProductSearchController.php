@@ -16,6 +16,7 @@ class ExternalProductSearchController extends Controller
         $page = max(1, (int) $request->query('page', 1));
         $perPage = min(20, max(4, (int) $request->query('per_page', 8)));
         $cacheKey = $cache->key([
+            'version' => 'eed-dynamic-v3',
             'external' => 'supplier',
             'q' => $query,
             'page' => $page,

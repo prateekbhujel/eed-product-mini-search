@@ -28,6 +28,7 @@ return [
         'session_id' => env('EED_SESSION_ID', 'auto'),
         'shop_url' => env('EED_SHOP_URL', env('APP_URL')),
         'timeout' => env('EED_TIMEOUT', 8),
+        'demo_query_routing' => env('EED_DEMO_QUERY_ROUTING', true),
     ],
 
     'ses' => [

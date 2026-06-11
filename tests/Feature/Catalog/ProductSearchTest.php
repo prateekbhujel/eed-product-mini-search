@@ -185,7 +185,7 @@ class ProductSearchTest extends TestCase
                 && ($query['id'] ?? null) === 'demo-id'
                 && ($query['sessionid'] ?? null) === 'demo-session'
                 && ($query['art'] ?? null) === 'artikelsuche'
-                && ($query['suchbg'] ?? null) === 'SONYadapter'
+                && ($query['suchbg'] ?? null) === 'SONY'
                 && ($query['shopurl'] ?? null) === 'https://eed.pratikbhujel.com.np'
                 && ($query['customerip'] ?? null) === md5('127.0.0.1');
         });
@@ -219,6 +219,125 @@ class ProductSearchTest extends TestCase
             ->assertJsonPath('meta.cache_hit', true);
 
         Http::assertNothingSent();
+    }
+
+    public function test_external_product_adapter_routes_electrolux_to_public_eed_aeg_feed(): void
+    {
+        cache()->flush();
+        config([
+            'services.eed.id' => 'demo-id',
+            'services.eed.session_id' => 'auto',
+        ]);
+
+        Http::fake([
+            'shop.euras.com/eed.php*' => Http::response([
+                'fehlernummer' => '0',
+                'gesamtanzahltreffer' => 200,
+                'treffer' => [
+                    '1' => [
+                        'artikelnummer' => 'H632136',
+                        'artikelbezeichnung' => '5551121162 GLASPLATTE MIT RAHMEN, INOX, AEG',
+                        'artikelhersteller' => 'ELECTROLUX / AEG',
+                        'vgruppenname' => 'GLASKERAMIKFLAECHEN',
+                        'ekpreis' => '177,23',
+                        'thumbnailurl' => 'https://example.test/aeg.jpg',
+                        'bestellbar' => 'J',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $this->getJson('/api/catalog/external-search?q=ELECTROLUX&per_page=4')
+            ->assertOk()
+            ->assertJsonPath('products.0.external_id', 'H632136')
+            ->assertJsonPath('products.0.source_query', 'AEG')
+            ->assertJsonPath('meta.gateway', 'eed-live')
+            ->assertJsonPath('meta.requested_query', 'ELECTROLUX')
+            ->assertJsonPath('meta.eed_query', 'AEG')
+            ->assertJsonPath('meta.query_mapped', true);
+
+        Http::assertSent(function ($request): bool {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+            return ($query['art'] ?? null) === 'artikelsuche'
+                && ($query['suchbg'] ?? null) === 'AEG';
+        });
+    }
+
+    public function test_external_product_adapter_uses_extended_eed_family_search(): void
+    {
+        cache()->flush();
+        config([
+            'services.eed.id' => 'demo-id',
+            'services.eed.session_id' => 'auto',
+        ]);
+
+        Http::fake([
+            'shop.euras.com/eed.php*' => Http::response([
+                'fehlernummer' => '0',
+                'gesamtanzahltreffer' => 2,
+                'vgruppentreffer' => [
+                    '1' => [
+                        'vgruppenid' => '5853500000',
+                        'vgruppenname' => 'Glasplatten',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $this->getJson('/api/catalog/external-search?q=GLAS&per_page=4')
+            ->assertOk()
+            ->assertJsonPath('products.0.external_id', 'family-5853500000')
+            ->assertJsonPath('products.0.name', 'Glasplatten')
+            ->assertJsonPath('products.0.source', 'eed-family')
+            ->assertJsonPath('products.0.lookup_type', 'article_family')
+            ->assertJsonPath('meta.eed_command', 'artikelsuche_neu')
+            ->assertJsonPath('meta.eed_query', 'GLAS');
+
+        Http::assertSent(function ($request): bool {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+            return ($query['art'] ?? null) === 'artikelsuche_neu'
+                && ($query['suchbg'] ?? null) === 'GLAS';
+        });
+    }
+
+    public function test_external_product_adapter_uses_eed_appliance_manufacturer_search(): void
+    {
+        cache()->flush();
+        config([
+            'services.eed.id' => 'demo-id',
+            'services.eed.session_id' => 'auto',
+        ]);
+
+        Http::fake([
+            'shop.euras.com/eed.php*' => Http::response([
+                'fehlernummer' => '0',
+                'gesamtanzahltreffer' => 1,
+                'treffer' => [
+                    '1' => [
+                        'herstellerid' => '15250000',
+                        'geraetehersteller' => 'SAMSUNG',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $this->getJson('/api/catalog/external-search?q=SAMSUNG&per_page=4')
+            ->assertOk()
+            ->assertJsonPath('products.0.external_id', 'manufacturer-15250000')
+            ->assertJsonPath('products.0.name', 'SAMSUNG')
+            ->assertJsonPath('products.0.source', 'eed-manufacturer')
+            ->assertJsonPath('products.0.lookup_type', 'appliance_manufacturer')
+            ->assertJsonPath('meta.eed_command', 'geraetehersteller')
+            ->assertJsonPath('meta.eed_query', 'SAMSUNG');
+
+        Http::assertSent(function ($request): bool {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+            return ($query['art'] ?? null) === 'geraetehersteller'
+                && ($query['suchbg'] ?? null) === 'SAMSUNG';
+        });
     }
 
     public function test_external_product_adapter_uses_session_auto_when_session_is_not_configured(): void

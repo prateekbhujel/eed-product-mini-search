@@ -30,6 +30,10 @@ const initialFilters = {
 };
 
 function filtersFromLocation() {
+    if (isDetailPath()) {
+        return { ...initialFilters };
+    }
+
     const params = new URLSearchParams(window.location.search);
 
     return {
@@ -38,6 +42,17 @@ function filtersFromLocation() {
         brand: params.get('brand') ?? '',
         availability: params.get('availability') ?? '',
     };
+}
+
+function isDetailPath() {
+    return /^\/products\/[^/]+/.test(window.location.pathname)
+        || /^\/eed-products\/[^/]+/.test(window.location.pathname);
+}
+
+function detailQueryFromLocation() {
+    const params = new URLSearchParams(window.location.search);
+
+    return params.get('q') ?? '';
 }
 
 function catalogUrlFromFilters(filters) {
@@ -60,9 +75,120 @@ const emptyPagination = {
     next_page: null,
 };
 
+function sortFacetOptions(options) {
+    return Array.from(options.values())
+        .sort((first, second) => second.count - first.count || first.label.localeCompare(second.label));
+}
+
+function addFacetOption(map, value, label = value) {
+    if (!value) {
+        return;
+    }
+
+    const key = String(value);
+    const current = map.get(key);
+
+    if (current) {
+        current.count += 1;
+        return;
+    }
+
+    map.set(key, { value: key, label: String(label || key), count: 1 });
+}
+
+function supplierFacetsFromProducts(products) {
+    const families = new Map();
+    const brands = new Map();
+    const availability = new Map();
+
+    products.forEach((product) => {
+        addFacetOption(families, product.family || product.category?.short_name);
+        addFacetOption(brands, product.brand);
+        addFacetOption(availability, product.availability?.code, product.availability?.label);
+    });
+
+    return {
+        families: sortFacetOptions(families),
+        brands: sortFacetOptions(brands),
+        availability: sortFacetOptions(availability),
+        categories: sortFacetOptions(families),
+    };
+}
+
+function productMatchesSupplierFilters(product, filters) {
+    if (filters.family && filters.family !== product.family && filters.family !== product.category?.short_name) {
+        return false;
+    }
+
+    if (filters.brand && filters.brand !== product.brand) {
+        return false;
+    }
+
+    if (filters.availability && filters.availability !== product.availability?.code) {
+        return false;
+    }
+
+    return true;
+}
+
+function uniqueValues(values, limit = 8) {
+    const seen = new Set();
+    const unique = [];
+
+    values.forEach((value) => {
+        const label = String(value ?? '').trim();
+
+        if (!label || seen.has(label.toLowerCase())) {
+            return;
+        }
+
+        seen.add(label.toLowerCase());
+        unique.push(label);
+    });
+
+    return unique.slice(0, limit);
+}
+
+function supplierSuggestionsFromData(products, facets, meta) {
+    const metaQueries = String(meta?.eed_query ?? '')
+        .split(',')
+        .map((query) => query.trim())
+        .filter(Boolean);
+
+    return uniqueValues([
+        ...metaQueries,
+        ...products.map((product) => product.source_query),
+        ...facets.brands.map((option) => option.label),
+        ...facets.families.map((option) => option.label),
+        ...products.flatMap((product) => product.identifiers?.oem ?? []),
+    ], 10);
+}
+
+function supplierNavItemsFromFacets(facets) {
+    const familyItems = facets.families.slice(0, 5).map((option) => ({
+        type: 'family',
+        value: option.value,
+        label: option.label,
+    }));
+
+    if (familyItems.length >= 5) {
+        return familyItems;
+    }
+
+    const brandItems = facets.brands.slice(0, 5 - familyItems.length).map((option) => ({
+        type: 'brand',
+        value: option.value,
+        label: option.label,
+    }));
+
+    return [...familyItems, ...brandItems];
+}
+
 export default function CatalogApp() {
     const detailSlug = window.location.pathname.match(/^\/products\/([^/]+)/)?.[1] ?? null;
     const externalArticleNumber = window.location.pathname.match(/^\/eed-products\/([^/]+)/)?.[1] ?? null;
+    const isDetailPage = Boolean(detailSlug || externalArticleNumber);
+    const detailLookupQuery = useMemo(() => detailQueryFromLocation(), []);
     const [filters, setFilters] = useState(filtersFromLocation);
     const [data, setData] = useState({
         products: [],
@@ -94,22 +220,45 @@ export default function CatalogApp() {
     const searchRequestRef = useRef(0);
     const externalRequestRef = useRef(0);
 
-    const hasFilters = Boolean(filters.q.trim() || filters.family || filters.brand || filters.availability);
-    const supplierBrowse = !detailSlug && !externalArticleNumber && !hasFilters;
-    const supplierSearch = filters.q.trim().length >= 3 || supplierBrowse;
+    const supplierMode = !detailSlug && !externalArticleNumber;
+    const externalQuery = filters.q.trim().length >= 3 ? filters.q.trim() : '';
+    const hasSupplierClientFilters = Boolean(filters.family || filters.brand || filters.availability);
+    const supplierBrowse = supplierMode && !externalQuery && !hasSupplierClientFilters;
+    const supplierSearch = supplierMode;
     const supplierProducts = useMemo(
-        () => (externalData.products ?? []).map((product, index) => normalizeSupplierProduct(product, index, filters.q)),
-        [externalData.products, filters.q],
+        () => (externalData.products ?? []).map((product, index) => normalizeSupplierProduct(product, index, externalQuery)),
+        [externalData.products, externalQuery],
     );
-    const usingSupplierProducts = supplierSearch && supplierProducts.length > 0;
-    const activeProducts = usingSupplierProducts ? supplierProducts : data.products;
-    const activePagination = usingSupplierProducts ? externalData.meta : data.pagination;
-    const activeLoading = supplierSearch
-        ? ((externalLoading && page === 1) || (!usingSupplierProducts && loading))
-        : loading;
-    const activeLoadingMore = usingSupplierProducts ? externalLoadingMore : loadingMore;
+    const supplierFacets = useMemo(() => supplierFacetsFromProducts(supplierProducts), [supplierProducts]);
+    const filteredSupplierProducts = useMemo(
+        () => supplierProducts.filter((product) => productMatchesSupplierFilters(product, filters)),
+        [filters, supplierProducts],
+    );
+    const supplierSuggestions = useMemo(
+        () => supplierSuggestionsFromData(supplierProducts, supplierFacets, externalData.meta),
+        [externalData.meta, supplierFacets, supplierProducts],
+    );
+    const supplierNavItems = useMemo(
+        () => supplierNavItemsFromFacets(supplierFacets),
+        [supplierFacets],
+    );
+    const usingSupplierMode = supplierMode;
+    const activeProducts = usingSupplierMode ? filteredSupplierProducts : data.products;
+    const activeFacets = usingSupplierMode ? supplierFacets : data.facets;
+    const activePagination = usingSupplierMode && hasSupplierClientFilters
+        ? emptyPagination
+        : (usingSupplierMode ? (externalData.meta ?? emptyPagination) : data.pagination);
+    const activeLoading = usingSupplierMode ? (externalLoading && page === 1) : loading;
+    const activeLoadingMore = usingSupplierMode ? externalLoadingMore : loadingMore;
 
     useEffect(() => {
+        if (supplierMode) {
+            setLoading(false);
+            setLoadingMore(false);
+
+            return undefined;
+        }
+
         const controller = new AbortController();
         const requestId = searchRequestRef.current + 1;
         searchRequestRef.current = requestId;
@@ -168,7 +317,7 @@ export default function CatalogApp() {
             window.clearTimeout(timer);
             controller.abort();
         };
-    }, [filters, page]);
+    }, [filters, page, supplierMode]);
 
     useEffect(() => {
         const syncFromUrl = () => {
@@ -201,7 +350,7 @@ export default function CatalogApp() {
         }
 
         const timer = window.setTimeout(() => {
-            searchExternalProducts({ q: filters.q, page, per_page: 12 }, controller.signal)
+            searchExternalProducts({ q: externalQuery, page, per_page: externalQuery ? 12 : 20 }, controller.signal)
                 .then((payload) => {
                     if (requestId !== externalRequestRef.current) {
                         return;
@@ -232,13 +381,13 @@ export default function CatalogApp() {
                         setExternalLoadingMore(false);
                     }
                 });
-        }, page === 1 ? 420 : 80);
+        }, page === 1 ? 360 : 80);
 
         return () => {
             window.clearTimeout(timer);
             controller.abort();
         };
-    }, [filters.q, page, supplierSearch]);
+    }, [externalQuery, page, supplierBrowse, supplierSearch]);
 
     useEffect(() => {
         const target = loadMoreRef.current;
@@ -271,30 +420,6 @@ export default function CatalogApp() {
         () => cartItems.reduce((total, item) => total + item.qty, 0),
         [cartItems],
     );
-
-    const resultTitle = useMemo(() => {
-        if (filters.q) {
-            return `Spare parts matching "${filters.q}"`;
-        }
-
-        if (filters.family) {
-            return filters.family;
-        }
-
-        if (filters.brand) {
-            return `${filters.brand} spare parts`;
-        }
-
-        return 'Recommended appliance parts';
-    }, [filters.brand, filters.family, filters.q]);
-
-    const activeResultTitle = usingSupplierProducts
-        ? (filters.q ? `EED supplier results matching "${filters.q}"` : 'Live EED supplier catalog')
-        : resultTitle;
-
-    const resultCountLabel = usingSupplierProducts
-        ? `${externalData.meta?.total ?? supplierProducts.length} EED results`
-        : `${data.meta?.result_count ?? 0} results`;
 
     function prepareFreshSearch() {
         setLoading(true);
@@ -340,7 +465,7 @@ export default function CatalogApp() {
         const nextFilters = { ...filters, q: filters.q.trim() };
         const nextUrl = catalogUrlFromFilters(nextFilters);
 
-        if (detailSlug) {
+        if (isDetailPage) {
             window.location.href = nextUrl;
             return;
         }
@@ -355,19 +480,37 @@ export default function CatalogApp() {
     }
 
     function selectFamily(value) {
-        updateFilter('family', value);
         setCategoryOpen(false);
-        if (detailSlug) {
-            window.location.href = `/?family=${encodeURIComponent(value)}`;
+        if (isDetailPage) {
+            window.location.href = catalogUrlFromFilters({ ...initialFilters, family: value });
+            return;
         }
+
+        updateFilter('family', value);
     }
 
     function selectBrand(value) {
-        updateFilter('brand', value);
         setCategoryOpen(false);
-        if (detailSlug) {
-            window.location.href = `/?brand=${encodeURIComponent(value)}`;
+        if (isDetailPage) {
+            window.location.href = catalogUrlFromFilters({ ...initialFilters, brand: value });
+            return;
         }
+
+        updateFilter('brand', value);
+    }
+
+    function selectSupplierNavItem(item) {
+        if (item.type === 'brand') {
+            selectBrand(item.value);
+            return;
+        }
+
+        if (item.type === 'family') {
+            selectFamily(item.value);
+            return;
+        }
+
+        applySuggestion(item.value);
     }
 
     function addToCart(product) {
@@ -409,7 +552,7 @@ export default function CatalogApp() {
     ];
 
     const canLoadMore = Boolean(activePagination?.has_more && activePagination?.next_page);
-    const showHomeBrowse = !detailSlug && activeFilterCount === 0 && !loading && data.products.length > 0;
+    const showHomeBrowse = supplierBrowse && !activeLoading && supplierProducts.length > 0;
 
     return (
         <div className="market-page">
@@ -439,10 +582,10 @@ export default function CatalogApp() {
                         <select
                             aria-label="Search family"
                             value={filters.family}
-                            onChange={(event) => updateFilter('family', event.target.value)}
+                            onChange={(event) => selectFamily(event.target.value)}
                         >
                             <option value="">All parts</option>
-                            {(data.facets.families ?? []).map((option) => (
+                            {(activeFacets.families ?? []).map((option) => (
                                 <option key={option.value} value={option.value}>
                                     {option.label}
                                 </option>
@@ -496,23 +639,41 @@ export default function CatalogApp() {
                 </div>
 
                 <nav className="market-subnav" aria-label="Quick categories">
-                    <button type="button" onClick={() => updateFilter('family', '')}>All</button>
-                    {quickFamilies.map((family) => (
-                        <button
-                            key={family}
-                            type="button"
-                            className={filters.family === family ? 'is-active' : ''}
-                            onClick={() => updateFilter('family', family)}
-                        >
-                            {family}
-                        </button>
-                    ))}
+                    <button type="button" onClick={() => selectFamily('')}>All</button>
+                    {usingSupplierMode ? (
+                        supplierNavItems.map((item) => (
+                            <button
+                                key={`${item.type}-${item.value}`}
+                                type="button"
+                                className={
+                                    (item.type === 'family' && filters.family === item.value)
+                                    || (item.type === 'brand' && filters.brand === item.value)
+                                        ? 'is-active'
+                                        : ''
+                                }
+                                onClick={() => selectSupplierNavItem(item)}
+                            >
+                                {item.label}
+                            </button>
+                        ))
+                    ) : (
+                        quickFamilies.map((family) => (
+                            <button
+                                key={family}
+                                type="button"
+                                className={filters.family === family ? 'is-active' : ''}
+                                onClick={() => selectFamily(family)}
+                            >
+                                {family}
+                            </button>
+                        ))
+                    )}
                 </nav>
             </header>
 
             <CategoryMenu
                 open={categoryOpen}
-                facets={data.facets}
+                facets={activeFacets}
                 onClose={() => setCategoryOpen(false)}
                 onSelectFamily={selectFamily}
                 onSelectBrand={selectBrand}
@@ -531,7 +692,7 @@ export default function CatalogApp() {
             ) : externalArticleNumber ? (
                 <ExternalProductDetailPage
                     articleNumber={decodeURIComponent(externalArticleNumber)}
-                    query={filters.q}
+                    query={detailLookupQuery || decodeURIComponent(externalArticleNumber)}
                     onAddToCart={addToCart}
                 />
             ) : (
@@ -544,10 +705,11 @@ export default function CatalogApp() {
                         </button>
                     </div>
                     <FilterPanel
-                        facets={data.facets}
+                        facets={activeFacets}
                         filters={filters}
                         onChange={updateFilter}
                         onReset={resetFilters}
+                        title={usingSupplierMode ? 'Live supplier fields' : 'Family, brand, stock'}
                     />
                 </aside>
 
@@ -556,17 +718,20 @@ export default function CatalogApp() {
                 <section className="search-workspace">
                     {showHomeBrowse && (
                         <HomeCategoryGrid
-                            facets={data.facets}
+                            facets={activeFacets}
+                            supplierProducts={supplierProducts}
                             onSelectFamily={selectFamily}
+                            onSelectBrand={selectBrand}
+                            onSelectQuery={applySuggestion}
                         />
                     )}
 
-                    <div className="result-head">
-                        <div>
-                            <p>{activeLoading ? 'Searching catalog...' : resultCountLabel}</p>
-                            <h1>{activeResultTitle}</h1>
-                        </div>
-                        <div className="result-actions">
+                    <div className="catalog-toolbar">
+                        <SuggestionStrip
+                            suggestions={usingSupplierMode ? supplierSuggestions : data.suggestions}
+                            onSelect={applySuggestion}
+                        />
+                        <div className="catalog-toolbar-actions">
                             <button className="reset-button" type="button" onClick={resetFilters} disabled={activeFilterCount === 0}>
                                 <RotateCcw size={16} aria-hidden="true" />
                                 Reset
@@ -578,9 +743,7 @@ export default function CatalogApp() {
                             </button>
                         </div>
                     </div>
-
-                    <SuggestionStrip suggestions={data.suggestions} onSelect={applySuggestion} />
-                    {data.did_you_mean && filters.q && (
+                    {!usingSupplierMode && data.did_you_mean && filters.q && (
                         <div className="did-you-mean">
                             {'Did you mean '}
                             <button type="button" onClick={() => applySuggestion(data.did_you_mean)}>
@@ -614,8 +777,8 @@ export default function CatalogApp() {
                     ) : (
                         <div className="empty-state">
                             <BadgeCheck size={28} aria-hidden="true" />
-                            <h2>No exact match found</h2>
-                            <p>Try the appliance model, OEM reference, or a wider part family like pump, filter, heater, seal, cable or remote.</p>
+                            <h2>No supplier match found</h2>
+                            <p>Try AEG, Sony, HDMI, GLAS, HOME, Samsung or Whirlpool.</p>
                         </div>
                     )}
 

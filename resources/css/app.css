@@ -354,7 +354,6 @@ a:focus-visible {
 }
 
 .filter-panel,
-.result-head,
 .empty-state,
 .alert,
 .external-strip,
@@ -388,7 +387,6 @@ a:focus-visible {
 }
 
 .filter-panel-head p,
-.result-head p,
 .card-kicker,
 .detail-brand {
     margin: 0 0 4px;
@@ -399,7 +397,6 @@ a:focus-visible {
 }
 
 .filter-panel-head h2,
-.result-head h1,
 .product-card h2,
 .detail-main h1,
 .detail-block h2,
@@ -520,23 +517,19 @@ a:focus-visible {
     font-size: 12px;
 }
 
-.result-head {
+.catalog-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding: 14px 16px;
+    gap: 10px;
+    min-width: 0;
 }
 
-.result-head h1 {
-    font-size: 22px;
-    line-height: 1.2;
-}
-
-.result-actions {
+.catalog-toolbar-actions {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex: 0 0 auto;
 }
 
 .reset-button,
@@ -583,6 +576,7 @@ a:focus-visible {
     gap: 8px;
     overflow-x: auto;
     padding: 0 2px 2px;
+    min-width: 0;
 }
 
 .suggestion-strip span {
@@ -818,6 +812,17 @@ a:focus-visible {
 
 .stars svg {
     fill: #f59e0b;
+}
+
+.source-chip {
+    border: 1px solid #d5d9d9;
+    border-radius: 999px;
+    color: var(--color-link);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    padding: 3px 7px;
+    white-space: nowrap;
 }
 
 .card-meta,
@@ -1563,12 +1568,8 @@ a:focus-visible {
         display: inline-flex;
     }
 
-    .result-head {
+    .catalog-toolbar {
         align-items: flex-start;
-    }
-
-    .result-head h1 {
-        font-size: 20px;
     }
 
     .product-grid {
@@ -1619,7 +1620,7 @@ a:focus-visible {
         padding: 0 10px;
     }
 
-    .result-head {
+    .catalog-toolbar {
         display: grid;
     }
 
@@ -1631,7 +1632,7 @@ a:focus-visible {
         min-height: 0;
     }
 
-    .result-actions {
+    .catalog-toolbar-actions {
         justify-content: space-between;
     }
 

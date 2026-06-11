@@ -5,6 +5,7 @@ export default function ProductCard({ product, onAddToCart }) {
     const detailUrl = product.detail_url ?? (product.slug ? `/products/${product.slug}` : null);
     const hasDetailPage = Boolean(detailUrl);
     const hasRating = Number.isFinite(product.rating);
+    const isLookup = Boolean(product.is_lookup);
     const header = (
         <>
             <span className="image-box">
@@ -40,6 +41,7 @@ export default function ProductCard({ product, onAddToCart }) {
                     </span>
                     <span>{product.rating.toFixed(1)}</span>
                     <span>{product.review_count}</span>
+                    {product.source_label && <span className="source-chip">{product.source_label}</span>}
                 </div>
             ) : (
                 <div className="rating-row supplier-row">
@@ -66,13 +68,17 @@ export default function ProductCard({ product, onAddToCart }) {
             <div className="card-actions">
                 {hasDetailPage ? (
                     <a className="text-link" href={detailUrl}>View details</a>
+                ) : isLookup ? (
+                    <span className="text-link is-muted">Lookup result</span>
                 ) : (
                     <span className="text-link is-muted">EED item</span>
                 )}
-                <button type="button" className="buy-button" onClick={() => onAddToCart(product)}>
-                    <ShoppingCart size={15} aria-hidden="true" />
-                    Add
-                </button>
+                {!isLookup && (
+                    <button type="button" className="buy-button" onClick={() => onAddToCart(product)}>
+                        <ShoppingCart size={15} aria-hidden="true" />
+                        Add
+                    </button>
+                )}
             </div>
         </article>
     );

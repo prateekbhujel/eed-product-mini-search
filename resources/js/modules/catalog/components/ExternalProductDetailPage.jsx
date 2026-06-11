@@ -16,7 +16,7 @@ export default function ExternalProductDetailPage({ articleNumber, query, onAddT
     const [meta, setMeta] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const searchQuery = query || '';
+    const searchQuery = query || articleNumber || '';
 
     useEffect(() => {
         const controller = new AbortController();
@@ -25,13 +25,12 @@ export default function ExternalProductDetailPage({ articleNumber, query, onAddT
         searchExternalProducts({ q: searchQuery, page: 1, per_page: 20 }, controller.signal)
             .then((payload) => {
                 const match = (payload.products ?? []).find((item) => String(item.external_id) === articleNumber);
-                const selected = match ?? payload.products?.[0];
 
-                if (!selected) {
+                if (!match) {
                     throw new Error('No supplier product found');
                 }
 
-                setProduct(normalizeSupplierProduct(selected, 0, searchQuery));
+                setProduct(normalizeSupplierProduct(match, 0, searchQuery));
                 setMeta(payload.meta ?? {});
                 setError('');
             })
@@ -46,6 +45,30 @@ export default function ExternalProductDetailPage({ articleNumber, query, onAddT
     }, [articleNumber, searchQuery]);
 
     const refs = useMemo(() => product?.identifiers?.oem ?? [], [product]);
+    const supplier = product?.supplier ?? {};
+    const eedCommand = meta.eed_command ?? 'artikelsuche';
+    const proofText = [
+        product?.sku,
+        product?.brand,
+        supplier.group_name || product?.family,
+    ].filter(Boolean).join(' | ');
+    const supplierRows = [
+        ['Article number', product?.sku],
+        ['Original number', supplier.original_number],
+        ['EAN', supplier.ean],
+        ['Brand', product?.brand],
+        ['Family', supplier.group_name || product?.family],
+        ['Family ID', supplier.group_id],
+        ['Delivery', supplier.delivery],
+        ['Delivery days', supplier.delivery_days],
+        ['Orderable', supplier.orderable],
+        ['Replacement article', supplier.replacement_article],
+        ['Article flags', supplier.article_features],
+        ['Disposal cost', supplier.disposal_cost],
+        ['Image flags', [supplier.picture, supplier.more_pictures].filter(Boolean).join(' / ')],
+        ['Source query', searchQuery],
+    ].filter(([, value]) => value !== undefined && value !== null && value !== '');
+    const manufacturerAddress = supplier.manufacturer_address ?? {};
 
     if (loading) {
         return (
@@ -82,16 +105,33 @@ export default function ExternalProductDetailPage({ articleNumber, query, onAddT
                     <h1>{product.name}</h1>
 
                     <div className="supplier-proof">
-                        <strong>{meta.gateway === 'eed-live' ? 'EED live API' : 'EED test data'}</strong>
-                        <span>Article data loaded through the supplier gateway.</span>
+                        <strong>EED Test API</strong>
+                        <span>{eedCommand} mapped into storefront fields: {proofText}</span>
                     </div>
 
                     <dl className="detail-table">
-                        <InfoRow label="Article number" value={product.sku} />
-                        <InfoRow label="Brand" value={product.brand} />
-                        <InfoRow label="Family" value={product.family} />
-                        <InfoRow label="Source query" value={searchQuery || 'AEG, SONY, HDMI'} />
+                        {supplierRows.map(([label, value]) => (
+                            <InfoRow key={label} label={label} value={value} />
+                        ))}
                     </dl>
+
+                    {supplier.description && (
+                        <section className="detail-block">
+                            <h2>Supplier description</h2>
+                            <p className="detail-description">{supplier.description}</p>
+                        </section>
+                    )}
+
+                    {Object.keys(manufacturerAddress).length > 0 && (
+                        <section className="detail-block">
+                            <h2>Manufacturer address</h2>
+                            <dl className="detail-table">
+                                {Object.entries(manufacturerAddress).map(([label, value]) => (
+                                    <InfoRow key={label} label={label.replace('_', ' ')} value={value} />
+                                ))}
+                            </dl>
+                        </section>
+                    )}
 
                     <section className="detail-block">
                         <h2>Supplier references</h2>

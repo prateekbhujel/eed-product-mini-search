@@ -1,12 +1,12 @@
 import { RotateCcw } from 'lucide-react';
 
-export default function FilterPanel({ facets, filters, onChange, onReset }) {
+export default function FilterPanel({ facets, filters, onChange, onReset, title = 'Family, brand, stock' }) {
     return (
         <div className="filter-panel">
             <div className="filter-panel-head">
                 <div>
                     <p>Filters</p>
-                    <h2>Family, brand, stock</h2>
+                    <h2>{title}</h2>
                 </div>
                 <button type="button" className="icon-button" onClick={onReset} aria-label="Reset filters">
                     <RotateCcw size={16} aria-hidden="true" />
